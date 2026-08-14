@@ -76,14 +76,28 @@ if test "$mode" != live
 end
 
 # --- assemblage de la commande ---
+# Le monitor sur socket unix permet de piloter la VM sans clavier : notamment
+# 'screendump' pour capturer l'ecran et constater ce qui s'affiche vraiment,
+# plutot que de se fier a une description.
 set -l args \
     -enable-kvm -cpu host -smp 4 -m 8G \
     -machine q35 \
+    -monitor unix:$vm/monitor.sock,server,nowait \
     -drive if=pflash,format=raw,readonly=on,file=$ovmf_code \
     -drive if=pflash,format=raw,file=$vars \
-    -device virtio-vga \
     -device intel-hda -device hda-duplex \
     -usb -device usb-tablet
+
+# Carte graphique : virtio-gpu si disponible (bien plus fluide), sinon la VGA
+# standard, pilotee cote noyau par bochs-drm. Hyprland exige un peripherique
+# DRM/KMS et bochs-drm en est un ; le rendu passe simplement par llvmpipe.
+# qemu-base ne fournit PAS virtio-vga, il faut qemu-desktop pour l'avoir.
+if qemu-system-x86_64 -device help 2>&1 | grep -q '"virtio-vga"'
+    set -a args -device virtio-vga
+else
+    set -a args -vga std
+    _out 'virtio-gpu absent (qemu-base) : VGA standard + rendu logiciel, ce sera lent'
+end
 
 # Reseau : le mode hors-ligne est le test qui prouve la promesse offline
 if set -q _flag_offline
