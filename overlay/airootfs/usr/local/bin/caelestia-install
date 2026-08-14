@@ -123,6 +123,33 @@ rm -rf \
 # Liens 'wants' devenus orphelins (leurs unites viennent d'etre supprimees)
 find "$TARGET/etc/systemd/system" -xtype l -delete 2>/dev/null || true
 
+# --- noyau ---
+# mkarchiso vide /boot de l'airootfs : il deplace le noyau vers la zone de
+# demarrage de l'ISO. Copier le systeme live donne donc un /boot SANS noyau,
+# c'est-a-dire un systeme non amorcable. On le recupere depuis le support live.
+step 'Restauration du noyau'
+KERNEL=/run/archiso/bootmnt/arch/boot/x86_64/vmlinuz-linux
+[[ -f $KERNEL ]] || die "noyau introuvable sur le support live : $KERNEL"
+install -Dm644 "$KERNEL" "$TARGET/boot/vmlinuz-linux"
+info "vmlinuz-linux copie ($(du -h "$KERNEL" | cut -f1))"
+
+# Le preset livre est celui d'archiso : il ne genere qu'une image 'archiso' liee
+# a une config qu'on vient de supprimer, et aucune image de secours. On remet le
+# preset standard d'Arch, qui produit default + fallback.
+# Les microcodes sont embarques dans l'initramfs par le hook 'microcode' : pas
+# d'image separee a prevoir dans les entrees de demarrage.
+cat > "$TARGET/etc/mkinitcpio.d/linux.preset" <<'PRESET'
+ALL_config="/etc/mkinitcpio.conf"
+ALL_kver="/boot/vmlinuz-linux"
+
+PRESETS=('default' 'fallback')
+
+default_image="/boot/initramfs-linux.img"
+
+fallback_image="/boot/initramfs-linux-fallback.img"
+fallback_options="-S autodetect"
+PRESET
+
 # --- fstab ---
 step 'Table des systemes de fichiers'
 genfstab -U "$TARGET" >> "$TARGET/etc/fstab"
@@ -153,9 +180,21 @@ cat > /etc/hosts <<HOSTS
 HOSTS
 
 # Utilisateur. Shell fish : c'est celui que configure le rice.
-useradd -m -G wheel,audio,video,input,storage -s /usr/bin/fish "$USERNAME"
+# L'utilisateur 'caelestia' de la session live figure deja dans le /etc/passwd
+# recopie : si l'operateur choisit ce meme nom, useradd echouerait et stopperait
+# l'installation. On adapte au lieu de supposer un compte neuf.
+if id "$USERNAME" &>/dev/null; then
+    usermod -aG wheel,audio,video,input,storage -s /usr/bin/fish -d "/home/$USERNAME" "$USERNAME"
+else
+    useradd -m -G wheel,audio,video,input,storage -s /usr/bin/fish "$USERNAME"
+fi
 chpasswd < /root/.passwd-in
 rm -f /root/.passwd-in
+
+# machine-id herite du live : deux machines installees depuis la meme image
+# partageraient la meme identite (baux DHCP, journal, resolution de nom).
+# Vide = systemd en regenere un au premier demarrage.
+: > /etc/machine-id
 # Root sans mot de passe utilisable : on passe par sudo
 passwd -l root >/dev/null
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
