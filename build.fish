@@ -38,10 +38,9 @@ end
 
 # --- prerequis ---
 _step 'Verification des prerequis'
-for tool in mkarchiso repo-add
-    command -q $tool; or _die "$tool introuvable. Installe : sudo pacman -S --needed archiso devtools"
+for tool in mkarchiso repo-add rsync
+    command -q $tool; or _die "$tool introuvable. Installe : sudo pacman -S --needed archiso devtools rsync"
 end
-test -d "$profile"; or _die "profil archiso absent : $profile"
 echo "  ok  outillage present"
 
 # Espace disque : mkarchiso decompresse tout le systeme de fichiers racine
@@ -70,7 +69,12 @@ else
     or _die 'construction du depot AUR echouee'
 end
 
-# --- 2. ISO ---
+# --- 2. profil archiso ---
+_step 'Profil archiso'
+fish "$root/scripts/make-profile.fish"
+or _die 'generation du profil echouee'
+
+# --- 3. ISO ---
 _step 'Construction de l\'ISO (mkarchiso, root requis)'
 mkdir -p "$out"
 sudo mkarchiso -v -w "$work" -o "$out" "$profile"
