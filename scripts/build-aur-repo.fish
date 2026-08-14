@@ -92,8 +92,12 @@ if test (count $missing) -gt 0
     _die (count $missing)" paquet(s) manquant(s), depot incomplet"
 end
 
-# Construit la base de donnees pacman du depot
+# Construit la base de donnees pacman du depot.
+# On repart d'une base vierge : la reconstruire evite les avertissements
+# "une entree existait deja" a chaque rejeu, et garantit qu'un paquet retire de
+# aur-packages.conf disparait bien de la base.
 _out cyan "generation de la base $repo_name.db.tar.zst"
+rm -f "$repo_dir/$repo_name".{db,files}*
 repo-add --quiet --new --remove "$repo_dir/$repo_name.db.tar.zst" "$repo_dir"/*.pkg.tar.zst
 or _die "repo-add a echoue"
 

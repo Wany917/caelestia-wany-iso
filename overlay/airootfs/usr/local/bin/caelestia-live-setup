@@ -1,54 +1,15 @@
 #!/usr/bin/env bash
 # Met en place le rice caelestia dans la session live, une fois au demarrage.
 #
-# Le depot est deja present dans l'image (/root/.local/share/caelestia). Il reste
-# a poser les symlinks de configuration et a appliquer l'overlay perso. On reutilise
-# les scripts du depot plutot que de dupliquer leur logique ici : ils resteront
-# la reference meme quand le rice evoluera.
-#
-# On n'appelle PAS install.fish : il installe des paquets et compile le metapackage,
-# ce qui est deja fait dans l'image et echouerait sans reseau.
+# Simple enveloppe autour de caelestia-apply-rice : la mise en place est identique
+# entre le live et le systeme installe, seul le home change.
 
 set -uo pipefail
 
-RICE="/root/.local/share/caelestia"
-CONFIG="/root/.config"
 STAMP="/run/caelestia-live-setup.done"
 
-log() { echo "[caelestia-live] $*"; }
+[[ -e $STAMP ]] && { echo "[caelestia-live] deja fait"; exit 0; }
 
-[[ -e $STAMP ]] && { log "deja fait"; exit 0; }
-[[ -d $RICE ]] || { log "depot absent de l'image : $RICE"; exit 0; }
-
-mkdir -p "$CONFIG"
-
-# Symlinks de configuration : memes cibles que install.fish.
-# On ne remplace jamais un chemin existant qui ne serait pas notre lien.
-for entry in hypr foot fish fastfetch btop uwsm starship.toml; do
-    src="$RICE/$entry"
-    dst="$CONFIG/$entry"
-    [[ -e $src ]] || continue
-    if [[ -e $dst && ! -L $dst ]]; then
-        log "$dst existe et n'est pas un lien, on n'y touche pas"
-        continue
-    fi
-    ln -sfn "$src" "$dst"
-done
-log "configs liees"
-
-# Overlay perso (overrides Hyprland, music-hud, patches du shell, setcap gsr).
-# --noconfirm n'existe pas ici : le script est non interactif par construction.
-if [[ -x $RICE/custom/install-custom.fish ]]; then
-    log "application de l'overlay custom"
-    fish "$RICE/custom/install-custom.fish" || log "overlay en echec (non bloquant)"
-fi
-
-# Le scheme de couleurs doit exister avant le premier lancement du shell, sinon
-# caelestia demarre sans palette.
-if [[ ! -f /root/.local/state/caelestia/scheme.json ]]; then
-    mkdir -p /root/.local/state/caelestia
-    caelestia scheme set -n shadotheme >/dev/null 2>&1 || log "scheme par defaut non applique"
-fi
+/usr/local/bin/caelestia-apply-rice /root
 
 touch "$STAMP"
-log "pret"

@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Pose le rice caelestia dans un home donne.
+#
+#   caelestia-apply-rice <home> [utilisateur]
+#
+# Utilise a deux endroits : la session live (home = /root) et le systeme fraichement
+# installe (home = /home/<user>, appele depuis le chroot). Un seul code pour les deux,
+# sinon les deux chemins divergent des la premiere evolution du rice.
+#
+# On n'appelle pas install.fish : il installe des paquets et compile le metapackage,
+# choses deja faites dans l'image et qui echoueraient sans reseau.
+
+set -uo pipefail
+
+HOME_DIR="${1:?usage: caelestia-apply-rice <home> [utilisateur]}"
+OWNER="${2:-}"
+
+RICE="$HOME_DIR/.local/share/caelestia"
+CONFIG="$HOME_DIR/.config"
+
+log() { echo "[rice] $*"; }
+
+[[ -d $RICE ]] || { log "depot absent : $RICE"; exit 1; }
+
+mkdir -p "$CONFIG"
+
+# Memes cibles que les 'ln -s' d'install.fish. On ne remplace jamais un chemin
+# existant qui ne serait pas deja un lien : ce serait ecraser la config de l'user.
+for entry in hypr foot fish fastfetch btop uwsm starship.toml; do
+    src="$RICE/$entry"
+    dst="$CONFIG/$entry"
+    [[ -e $src ]] || continue
+    if [[ -e $dst && ! -L $dst ]]; then
+        log "$dst existe et n'est pas un lien, laisse tel quel"
+        continue
+    fi
+    ln -sfn "$src" "$dst"
+done
+log "configs liees dans $CONFIG"
+
+# Overlay perso : overrides Hyprland, music-hud, patches du shell, setcap gsr.
+# HOME doit etre positionne, le script s'en sert pour ses chemins de destination.
+if [[ -x $RICE/custom/install-custom.fish ]]; then
+    log "application de l'overlay custom"
+    HOME="$HOME_DIR" fish "$RICE/custom/install-custom.fish" || log "overlay en echec (non bloquant)"
+fi
+
+# Le scheme de couleurs doit exister avant le premier lancement du shell, sans quoi
+# caelestia demarre sans palette.
+if [[ ! -f $HOME_DIR/.local/state/caelestia/scheme.json ]]; then
+    mkdir -p "$HOME_DIR/.local/state/caelestia"
+    HOME="$HOME_DIR" caelestia scheme set -n shadotheme >/dev/null 2>&1 \
+        || log "scheme par defaut non applique"
+fi
+
+# Le rice a pu etre copie en root : sans ca l'utilisateur ne peut rien ecrire.
+if [[ -n $OWNER ]]; then
+    chown -R "$OWNER:$OWNER" "$HOME_DIR"
+    log "proprietaire : $OWNER"
+fi
+
+log "pret"
