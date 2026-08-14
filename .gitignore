@@ -1,0 +1,8 @@
+# Depot pacman local : ~70 Mo de binaires regeneres par scripts/build-aur-repo.fish.
+# Des binaires dans git gonflent l'historique pour toujours, et quickshell-git seul
+# pese 67 Mo (au-dessus du seuil d'avertissement GitHub).
+/local-repo/
+
+# Sorties de mkarchiso
+/out/
+/work/
