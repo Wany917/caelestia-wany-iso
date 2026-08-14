@@ -65,8 +65,9 @@ if set -q _flag_clean
 end
 mkdir -p "$repo_dir"
 
-# Liste des paquets (commentaires et lignes vides ignores)
-set -l packages (string trim < "$conf" | string match -rv '^\s*(#|$)')
+# Liste des paquets. Retire les commentaires de fin de ligne AVANT de trim :
+# sinon "quickshell-git  # commentaire" devient un nom de paquet invalide.
+set -l packages (string replace -r '#.*$' '' < "$conf" | string trim | string match -rv '^$')
 _out cyan "depot '$repo_name' : "(count $packages)" paquets attendus"
 
 set -l missing
