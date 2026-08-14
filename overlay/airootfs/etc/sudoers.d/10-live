@@ -1,0 +1,6 @@
+# Session live : l'utilisateur n'a pas de mot de passe, il lui faut donc sudo
+# sans mot de passe pour lancer caelestia-install.
+# Ce fichier est propre au live et n'atterrit PAS sur le systeme installe :
+# caelestia-install le supprime et pose un sudoers classique demandant le mot
+# de passe.
+caelestia ALL=(ALL:ALL) NOPASSWD: ALL

@@ -117,7 +117,8 @@ rm -rf \
     "$TARGET/etc/systemd/resolved.conf.d/archiso.conf" \
     "$TARGET/root/.zlogin" "$TARGET/root/.automated_script.sh" \
     "$TARGET/usr/local/bin/choose-mirror" "$TARGET/usr/local/bin/Installation_guide" \
-    "$TARGET/usr/local/bin/livecd-sound" "$TARGET/usr/local/bin/caelestia-live-setup"
+    "$TARGET/usr/local/bin/livecd-sound" "$TARGET/usr/local/bin/caelestia-live-setup" \
+    "$TARGET/etc/sudoers.d/10-live"
 
 # Liens 'wants' devenus orphelins (leurs unites viennent d'etre supprimees)
 find "$TARGET/etc/systemd/system" -xtype l -delete 2>/dev/null || true
@@ -212,10 +213,16 @@ CHROOT
 # --- rice dans le home de l'utilisateur ---
 step "Installation du rice pour $USERNAME"
 mkdir -p "$TARGET/home/$USERNAME/.local/share"
-rsync -a "$TARGET/root/.local/share/caelestia/" \
+rsync -a "$TARGET/home/caelestia/.local/share/caelestia/" \
          "$TARGET/home/$USERNAME/.local/share/caelestia/"
-rm -rf "$TARGET/root/.local/share/caelestia" "$TARGET/root/.config"
 arch-chroot "$TARGET" /usr/local/bin/caelestia-apply-rice "/home/$USERNAME" "$USERNAME"
+
+# L'utilisateur 'caelestia' n'existe que pour la session live : il n'a rien a
+# faire sur le systeme installe, ou l'utilisateur porte le nom choisi plus haut.
+if [[ $USERNAME != caelestia ]]; then
+    arch-chroot "$TARGET" userdel caelestia 2>/dev/null || true
+    rm -rf "$TARGET/home/caelestia"
+fi
 
 # --- fin ---
 umount -R "$TARGET"

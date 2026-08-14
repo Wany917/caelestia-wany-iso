@@ -65,15 +65,23 @@ end >> "$profile/pacman.conf"
 _out "application de l'overlay airootfs"
 cp -r "$overlay/airootfs/." "$profile/airootfs/"
 
-# Active le service de mise en place (archiso ne lance pas systemctl enable :
-# on cree le lien de wants a la main)
-mkdir -p "$profile/airootfs/etc/systemd/system/multi-user.target.wants"
-ln -sf /etc/systemd/system/caelestia-live-setup.service \
-    "$profile/airootfs/etc/systemd/system/multi-user.target.wants/caelestia-live-setup.service"
+# Activation des services (archiso ne lance pas systemctl enable : on cree les
+# liens de wants a la main)
+set -l wants "$profile/airootfs/etc/systemd/system/multi-user.target.wants"
+mkdir -p "$wants"
+ln -sf /etc/systemd/system/caelestia-live-setup.service "$wants/caelestia-live-setup.service"
+ln -sf /usr/lib/systemd/system/greetd.service "$wants/greetd.service"
+
+# greetd occupe le VT1. L'autologin root d'archiso s'y installe aussi et les deux
+# se disputeraient le terminal : on neutralise getty@tty1. Les autres VT restent
+# disponibles (Ctrl+Alt+F2) si le bureau ne demarre pas.
+ln -sf /dev/null "$profile/airootfs/etc/systemd/system/getty@tty1.service"
 
 # --- rice embarque dans l'image ---
+# Dans le home de l'utilisateur live, pas dans /root : Hyprland refuse de tourner
+# en root, la session live passe donc par un vrai utilisateur.
 _out "integration du rice depuis $rice_src"
-set -l dst "$profile/airootfs/root/.local/share/caelestia"
+set -l dst "$profile/airootfs/home/caelestia/.local/share/caelestia"
 mkdir -p (dirname "$dst")
 # .git exclu : plusieurs dizaines de Mo d'historique inutiles dans une image live
 rsync -a --exclude '.git' --exclude 'local-repo' "$rice_src/" "$dst/"

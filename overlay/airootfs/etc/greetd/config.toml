@@ -1,0 +1,14 @@
+# Session live : demarre directement le bureau pour l'utilisateur 'caelestia'.
+# Meme mecanique que le systeme installe (greetd + start-hyprland, fourni par le
+# paquet hyprland), pour que live et installe ne divergent pas.
+
+[terminal]
+vt = 1
+
+[default_session]
+command = "start-hyprland"
+user = "caelestia"
+
+[initial_session]
+command = "start-hyprland"
+user = "caelestia"

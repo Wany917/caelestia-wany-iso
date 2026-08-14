@@ -1,7 +1,8 @@
 [Unit]
-Description=Mise en place du rice caelestia dans la session live
-# Doit finir avant l'autologin du tty1, sinon Hyprland demarre sans configuration.
-Before=getty@tty1.service
+Description=Prepare la session live caelestia
+# Doit finir avant greetd : il lance le bureau pour l'utilisateur que ce
+# service cree, et applique le rice dans son home.
+Before=greetd.service
 After=local-fs.target
 ConditionPathExists=/run/archiso/bootmnt
 
