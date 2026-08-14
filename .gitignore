@@ -10,3 +10,6 @@
 # Profil archiso : entierement regenere par scripts/make-profile.fish.
 # Seul overlay/ est versionne, pour garder notre diff avec releng explicite.
 /profile/
+
+# Disques et variables UEFI des VM de test (gros, jetables)
+/vm/

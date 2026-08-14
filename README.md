@@ -33,6 +33,20 @@ cd caelestia-wany-iso
 
 The AUR packages come from the build machine's own `paru`/`pacman` caches, so the image ships the exact binaries that were tested there. Anything missing stops the build with the command to run — nothing is compiled behind your back, because `quickshell-git` alone takes the better part of an hour.
 
+## Testing it
+
+Everything runs in a throwaway VM under `vm/`. Nothing touches the host.
+
+```sh
+./scripts/test-vm.fish --live               # does the desktop come up?
+./scripts/test-vm.fish --install            # ISO + blank disk, run caelestia-install inside
+./scripts/test-vm.fish --disk --offline     # boot the installed system with no network
+```
+
+That last one is the test that matters: if the desktop comes back with the network cut, the offline claim holds. `qemu-base` has no GUI backend, so the default is VNC on `localhost:5901` — connect with any viewer. Install `qemu-ui-gtk` and pass `--display gtk` if you'd rather have a native window.
+
+`caelestia-install` wipes the disk you point it at. It refuses to run outside the live session, refuses on a BIOS-booted machine rather than leaving you unbootable, refuses the disk carrying the live medium, and makes you retype the device path before touching anything.
+
 ## Caveats
 
 **The image is a snapshot.** `quickshell-git` and `qtengine-git` are VCS packages: they track a moving upstream. An ISO built today ships today's commit and drifts from then on. Rebuild periodically rather than treating an image as evergreen.
