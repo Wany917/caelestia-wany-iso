@@ -87,11 +87,25 @@ sed -i \
     -e 's|^iso_application=.*|iso_application="caelestia-wany live"|' \
     "$profile/profiledef.sh"
 
-# Droits d'execution du script de mise en place (archiso ignore le bit +x de la copie)
-sed -i 's|^  \["/usr/local/bin/choose-mirror"\]=.*|&\n  ["/usr/local/bin/caelestia-live-setup"]="0:0:755"|' \
-    "$profile/profiledef.sh"
-grep -q 'caelestia-live-setup' "$profile/profiledef.sh"
-or _die "droits du script non declares : la structure de profiledef.sh a change"
+# Droits d'execution de NOS scripts. archiso ne conserve pas le bit +x des fichiers
+# copies : il applique le tableau file_permissions, et tout ce qui n'y figure pas
+# retombe en 644. Un script oublie ici finit non executable dans l'image.
+set -l perms
+for f in (find "$overlay/airootfs/usr/local/bin" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null)
+    set -a perms "  [\"/usr/local/bin/$f\"]=\"0:0:755\""
+end
+test (count $perms) -gt 0; or _die "aucun script trouve dans overlay/airootfs/usr/local/bin"
+
+printf '%s\n' $perms > /tmp/cw-perms.$fish_pid
+sed -i "/^  \[\"\/usr\/local\/bin\/choose-mirror\"\]=/r /tmp/cw-perms.$fish_pid" "$profile/profiledef.sh"
+rm -f /tmp/cw-perms.$fish_pid
+
+# Verifie que chaque script est bien declare, plutot que de supposer que le sed a pris
+for f in (find "$overlay/airootfs/usr/local/bin" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null)
+    grep -q "\"/usr/local/bin/$f\"" "$profile/profiledef.sh"
+    or _die "droits non declares pour $f : la structure de profiledef.sh a change"
+end
+echo "  ok  "(count $perms)" script(s) declares executables"
 
 # --- validation de la liste de paquets ---
 # mkarchiso analyse packages.x86_64 avec ce sed : il retire "#..." mais laisse les
