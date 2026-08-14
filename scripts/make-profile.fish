@@ -95,25 +95,42 @@ sed -i \
     -e 's|^iso_application=.*|iso_application="caelestia-wany live"|' \
     "$profile/profiledef.sh"
 
-# Droits d'execution de NOS scripts. archiso ne conserve pas le bit +x des fichiers
-# copies : il applique le tableau file_permissions, et tout ce qui n'y figure pas
-# retombe en 644. Un script oublie ici finit non executable dans l'image.
+# Droits d'execution. mkarchiso copie l'airootfs avec 'cp -af --no-preserve=mode' :
+# TOUT le bit +x est perdu, seuls les chemins listes dans file_permissions le
+# retrouvent. Ca vaut pour nos scripts comme pour ceux du rice.
 set -l perms
 for f in (find "$overlay/airootfs/usr/local/bin" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null)
     set -a perms "  [\"/usr/local/bin/$f\"]=\"0:0:755\""
 end
 test (count $perms) -gt 0; or _die "aucun script trouve dans overlay/airootfs/usr/local/bin"
 
+# Executables du rice. La liste est derivee du depot source, ou les bits sont
+# justes, donc elle suit automatiquement les evolutions du rice.
+# Deux d'entre eux sont indispensables : hypr/scripts/configs.fish, appele par
+# hyprland.conf pour creer les ~/.config/caelestia/hypr-*.conf (sans lui, Hyprland
+# affiche 'source= globbing error'), et wsaction.fish pour les raccourcis de
+# workspace. Le proprietaire est corrige plus tard par caelestia-apply-rice.
+set -l rice_bins
+for f in (find "$rice_src" -type f -perm -u+x -not -path '*/.git/*' -printf '%P\n' 2>/dev/null)
+    set -a perms "  [\"/home/caelestia/.local/share/caelestia/$f\"]=\"0:0:755\""
+    set -a rice_bins $f
+end
+echo "  ok  "(count $rice_bins)" executable(s) du rice preserves"
+
 printf '%s\n' $perms > /tmp/cw-perms.$fish_pid
 sed -i "/^  \[\"\/usr\/local\/bin\/choose-mirror\"\]=/r /tmp/cw-perms.$fish_pid" "$profile/profiledef.sh"
 rm -f /tmp/cw-perms.$fish_pid
 
-# Verifie que chaque script est bien declare, plutot que de supposer que le sed a pris
+# Verifie que chaque entree est bien declaree, plutot que de supposer que le sed a pris
 for f in (find "$overlay/airootfs/usr/local/bin" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null)
     grep -q "\"/usr/local/bin/$f\"" "$profile/profiledef.sh"
     or _die "droits non declares pour $f : la structure de profiledef.sh a change"
 end
-echo "  ok  "(count $perms)" script(s) declares executables"
+for f in $rice_bins
+    grep -qF "caelestia/$f\"" "$profile/profiledef.sh"
+    or _die "droits non declares pour le rice : $f"
+end
+echo "  ok  "(count $perms)" entree(s) de droits declarees"
 
 # --- validation de la liste de paquets ---
 # mkarchiso analyse packages.x86_64 avec ce sed : il retire "#..." mais laisse les

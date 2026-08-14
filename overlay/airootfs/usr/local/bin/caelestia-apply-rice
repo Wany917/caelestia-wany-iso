@@ -40,7 +40,11 @@ log "configs liees dans $CONFIG"
 
 # Overlay perso : overrides Hyprland, music-hud, patches du shell, setcap gsr.
 # HOME doit etre positionne, le script s'en sert pour ses chemins de destination.
-if [[ -x $RICE/custom/install-custom.fish ]]; then
+#
+# On teste -f et non -x : mkarchiso copie l'airootfs avec --no-preserve=mode, donc
+# le bit +x peut manquer. Le script est de toute facon invoque via 'fish', ce qui
+# ne l'exige pas.
+if [[ -f $RICE/custom/install-custom.fish ]]; then
     log "application de l'overlay custom"
     HOME="$HOME_DIR" fish "$RICE/custom/install-custom.fish" || log "overlay en echec (non bloquant)"
 fi
