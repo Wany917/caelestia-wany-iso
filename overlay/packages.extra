@@ -1,0 +1,46 @@
+# Paquets ajoutes au profil releng d'archiso.
+# Concatenes a profile/packages.x86_64 par scripts/make-profile.fish.
+#
+# ATTENTION : pas de commentaire en fin de ligne. mkarchiso retire bien le "#..."
+# (sed 's/#.*//') mais laisse les espaces qui precedent, et pacman rejette un nom
+# de paquet avec des espaces en fin. Un commentaire = sa propre ligne.
+
+# --- Desktop ---
+# Le metapackage tire toute la chaine caelestia (hyprland, fish, foot, pipewire,
+# quickshell, caelestia-shell...). Inutile de lister ses dependances ici.
+caelestia-meta
+# Helper AUR : install.fish le reclame par son nom exact (pacman -Q paru), et sans
+# lui il tenterait de le compiler depuis l'AUR au premier boot.
+paru
+
+# --- Apps lancees par les keybinds du rice ---
+# $browser, Super+W
+zen-browser-bin
+# $editor, Super+C
+visual-studio-code-bin
+
+# --- Pilotes graphiques ---
+# Une ISO demarre sur du materiel inconnu : on couvre large plutot que de cibler
+# la machine de build.
+mesa
+# Rendu logiciel : sans lui, pas d'affichage en machine virtuelle.
+vulkan-swrast
+vulkan-intel
+vulkan-radeon
+# NVIDIA recent, precompile pour le noyau stock.
+nvidia-open
+
+# --- Session ---
+networkmanager
+xdg-desktop-portal-hyprland
+qt6-wayland
+
+# --- Polices ---
+# Le rice affiche du CJK (titres de morceaux) et des emoji : sans ces polices ce
+# sont des carres vides.
+noto-fonts
+noto-fonts-cjk
+noto-fonts-emoji
+
+# --- Installation sur disque ---
+archinstall

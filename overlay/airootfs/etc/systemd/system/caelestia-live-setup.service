@@ -1,0 +1,16 @@
+[Unit]
+Description=Mise en place du rice caelestia dans la session live
+# Doit finir avant l'autologin du tty1, sinon Hyprland demarre sans configuration.
+Before=getty@tty1.service
+After=local-fs.target
+ConditionPathExists=/run/archiso/bootmnt
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/caelestia-live-setup
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

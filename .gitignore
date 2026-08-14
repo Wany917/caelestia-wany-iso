@@ -6,3 +6,7 @@
 # Sorties de mkarchiso
 /out/
 /work/
+
+# Profil archiso : entierement regenere par scripts/make-profile.fish.
+# Seul overlay/ est versionne, pour garder notre diff avec releng explicite.
+/profile/
