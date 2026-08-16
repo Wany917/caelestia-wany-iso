@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Prepare la session live avant que greetd ne demarre le bureau.
+# Applique le rice dans la session live.
 #
-# Hyprland REFUSE de tourner en root ("launched with superuser privileges").
-# La session live a donc besoin d'un vrai utilisateur, ce qui rapproche au
-# passage le live du systeme installe : les deux passent par greetd.
+# L'utilisateur n'est PLUS cree ici : c'est systemd-sysusers qui s'en charge
+# (/etc/sysusers.d/caelestia-live.conf), dans sysinit.target, donc bien avant
+# greetd. Le creer ici reposait sur un simple Before=greetd.service, ce qui a
+# suffi en machine virtuelle mais pas sur une machine reelle : greetd a boucle
+# sur "configured default session user 'caelestia' not found" jusqu'a abandonner.
 #
-# L'utilisateur est cree au demarrage plutot que fige dans l'image : pas de
-# /etc/shadow a maintenir a la main dans le depot.
+# Ce service ne fait donc plus que la mise en place du rice. Meme s'il echoue,
+# la session ouvre : l'utilisateur existe de toute facon.
 
 set -uo pipefail
 
@@ -18,14 +20,17 @@ log() { echo "[caelestia-live] $*"; }
 
 [[ -e $STAMP ]] && { log 'deja fait'; exit 0; }
 
+# Filet de securite : si sysusers n'a pas fait son office, on ne laisse pas
+# greetd boucler dans le vide.
 if ! id "$LIVE_USER" &>/dev/null; then
-    # -M : le home est deja dans l'image (le rice y est embarque)
+    log "ATTENTION : $LIVE_USER absent alors que sysusers aurait du le creer"
     useradd -M -d "$LIVE_HOME" -s /usr/bin/fish \
-        -G wheel,audio,video,input,storage,seat "$LIVE_USER"
-    # Session live : pas de mot de passe a saisir
-    passwd -d "$LIVE_USER" >/dev/null
-    log "utilisateur $LIVE_USER cree"
+        -G wheel,audio,video,input,storage,seat "$LIVE_USER" \
+        || log "creation de secours en echec"
 fi
+
+# Session live : aucun mot de passe a saisir.
+passwd -d "$LIVE_USER" >/dev/null 2>&1 || true
 
 mkdir -p "$LIVE_HOME"
 chown "$LIVE_USER:$LIVE_USER" "$LIVE_HOME"
