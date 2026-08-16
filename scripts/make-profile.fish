@@ -104,18 +104,21 @@ for f in (find "$overlay/airootfs/usr/local/bin" -maxdepth 1 -type f -printf '%f
 end
 test (count $perms) -gt 0; or _die "aucun script trouve dans overlay/airootfs/usr/local/bin"
 
-# Executables du rice. La liste est derivee du depot source, ou les bits sont
-# justes, donc elle suit automatiquement les evolutions du rice.
-# Deux d'entre eux sont indispensables : hypr/scripts/configs.fish, appele par
-# hyprland.conf pour creer les ~/.config/caelestia/hypr-*.conf (sans lui, Hyprland
-# affiche 'source= globbing error'), et wsaction.fish pour les raccourcis de
-# workspace. Le proprietaire est corrige plus tard par caelestia-apply-rice.
-set -l rice_bins
-for f in (find "$rice_src" -type f -perm -u+x -not -path '*/.git/*' -printf '%P\n' 2>/dev/null)
-    set -a perms "  [\"/home/caelestia/.local/share/caelestia/$f\"]=\"0:0:755\""
-    set -a rice_bins $f
-end
-echo "  ok  "(count $rice_bins)" executable(s) du rice preserves"
+# Home de l'utilisateur live, en RECURSIF (le slash final declenche chown -fhR
+# et chmod -fR dans mkarchiso).
+#
+# Une seule entree regle deux problemes d'un coup :
+#   - le proprietaire. Sans elle, le home appartient a root et Hyprland echoue sur
+#     "Couldn't create config home directory (Permission denied)". Un chown au
+#     demarrage corrigeait ca, mais courait contre greetd et perdait sur materiel
+#     reel. L'UID 1000 est fixe par /etc/sysusers.d/caelestia-live.conf.
+#   - le bit +x, que mkarchiso jette (cp --no-preserve=mode). Il faut le rendre a
+#     hypr/scripts/configs.fish, sans quoi Hyprland ne trouve pas les fichiers
+#     qu'il tente de sourcer, et a wsaction.fish pour les raccourcis de workspace.
+#
+# 755 partout dans le home : c'est une session live sans secret, et ca evite
+# d'enumerer les executables un par un — donc rien a oublier quand le rice evolue.
+set -a perms "  [\"/home/caelestia/\"]=\"1000:1000:755\""
 
 printf '%s\n' $perms > /tmp/cw-perms.$fish_pid
 sed -i "/^  \[\"\/usr\/local\/bin\/choose-mirror\"\]=/r /tmp/cw-perms.$fish_pid" "$profile/profiledef.sh"
@@ -126,10 +129,10 @@ for f in (find "$overlay/airootfs/usr/local/bin" -maxdepth 1 -type f -printf '%f
     grep -q "\"/usr/local/bin/$f\"" "$profile/profiledef.sh"
     or _die "droits non declares pour $f : la structure de profiledef.sh a change"
 end
-for f in $rice_bins
-    grep -qF "caelestia/$f\"" "$profile/profiledef.sh"
-    or _die "droits non declares pour le rice : $f"
-end
+# Le home doit etre declare EN RECURSIF (slash final) et appartenir a l'UID que
+# sysusers attribue : sans ca, Hyprland ne peut pas ecrire dans son propre home.
+grep -qF '["/home/caelestia/"]="1000:1000:755"' "$profile/profiledef.sh"
+or _die 'droits du home live non declares, ou UID/mode inattendus'
 echo "  ok  "(count $perms)" entree(s) de droits declarees"
 
 # --- validation de la liste de paquets ---
