@@ -14,10 +14,14 @@ caelestia-meta
 paru
 
 # --- Apps lancees par les keybinds du rice ---
-# $browser, Super+W
+# $browser, Super+W. MPL-2.0, donc redistribuable dans l'image.
 zen-browser-bin
-# $editor, Super+C
-visual-studio-code-bin
+
+# PAS d'editeur embarque. $editor vaut 'code' (Super+C), mais
+# visual-studio-code-bin est sous licence 'custom: commercial' : la build
+# Microsoft ne peut pas etre redistribuee dans une ISO publique. Le paquet AUR
+# lui-meme la telecharge chez Microsoft a la compilation plutot que de l'heberger.
+# L'utilisateur l'installe apres coup (paru est embarque) — voir le README.
 
 # --- Pilotes graphiques ---
 # Une ISO demarre sur du materiel inconnu : on couvre large plutot que de cibler

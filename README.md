@@ -47,6 +47,22 @@ That last one is the test that matters: if the desktop comes back with the netwo
 
 `caelestia-install` wipes the disk you point it at. It refuses to run outside the live session, refuses on a BIOS-booted machine rather than leaving you unbootable, refuses the disk carrying the live medium, and makes you retype the device path before touching anything.
 
+## No editor on the image
+
+`Super + C` is bound to `code`, but no editor ships with the ISO. Microsoft's VS Code build is under a commercial licence that does not allow redistribution — the AUR package downloads it from Microsoft at build time rather than hosting it, for exactly that reason. Bundling it into a public image would not be legitimate.
+
+`paru` is on the image, so pick one after installing:
+
+```sh
+# Microsoft's build: MS marketplace, MS telemetry
+paru -S visual-studio-code-bin
+
+# VSCodium: same editor, free build, no MS telemetry, Open VSX marketplace
+paru -S vscodium-bin
+```
+
+VSCodium's binary is `codium`, so point `$editor` at it in `custom/overrides/hypr-vars.conf` (or `hypr/variables.conf`) if you go that way.
+
 ## Caveats
 
 **The image is a snapshot.** `quickshell-git` and `qtengine-git` are VCS packages: they track a moving upstream. An ISO built today ships today's commit and drifts from then on. Rebuild periodically rather than treating an image as evergreen.
