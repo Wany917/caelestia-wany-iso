@@ -13,3 +13,6 @@
 
 # Disques et variables UEFI des VM de test (gros, jetables)
 /vm/
+
+# Morceaux de l ISO prepares pour une release (regeneres par make-release.fish)
+/release/
