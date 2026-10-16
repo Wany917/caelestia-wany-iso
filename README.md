@@ -36,11 +36,7 @@ The desktop starts on its own, logged in as `caelestia`. Nothing to type.
 | `caelestia` | none | the desktop, `sudo` without a password |
 | `root` | none | the console login on TTY2 to TTY6, if you need it |
 
-**Keyboard.** The live session uses a French (AZERTY) layout, because that is my setup. To switch, open a terminal with `Super + T` and run:
-
-```sh
-hyprctl keyword input:kb_layout us
-```
+**Keyboard.** The live session starts in French (AZERTY), because that is my setup. **Caps Lock switches between French and US (QWERTY).** Shift + Caps Lock still locks capitals. The console on TTY2 and up is always US.
 
 The installer asks for your layout, so the installed system uses yours.
 

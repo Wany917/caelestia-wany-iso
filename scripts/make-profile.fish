@@ -108,11 +108,17 @@ or _die "extraction du rice echouee"
 
 # Reglages machine de la session live, lus par hypr-user.lua du rice. Pas de
 # verrouillage au demarrage : le compte live n'a pas de mot de passe, l'ecran de
-# verrouillage ne ferait que derouter. Le clavier reste celui du rice (fr).
+# verrouillage ne ferait que derouter.
+# Clavier : fr comme le rice, plus us, Verr. Maj basculant de l'un a l'autre.
+# Taper une commande pour changer de disposition est quasi impossible quand le
+# clavier physique ne correspond pas. Verr. Maj ne sert a aucun raccourci du rice,
+# et Maj + Verr. Maj garde le verrouillage des majuscules.
 mkdir -p "$live_home/.config/caelestia"
 printf '%s\n' \
     '-- Live session settings, written when the ISO was built.' \
     'return {' \
+    '    kb_layout     = "fr,us",' \
+    '    kb_options    = "grp:caps_toggle",' \
     '    lock_on_start = false,' \
     '}' > "$live_home/.config/caelestia/hypr-local.lua"
 

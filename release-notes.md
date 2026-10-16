@@ -30,7 +30,7 @@ sudo dd if=caelestia-wany.iso of=/dev/sdX bs=4M status=progress oflag=sync
 
 ## Using it
 
-Boot it and you land in caelestia's Hyprland desktop, logged in as `caelestia`. Both `caelestia` and `root` have no password. The live keyboard is French (AZERTY): `hyprctl keyword input:kb_layout us` in a terminal (`Super + T`) switches it.
+Boot it and you land in caelestia's Hyprland desktop, logged in as `caelestia`. Both `caelestia` and `root` have no password. The live keyboard starts in French (AZERTY): **Caps Lock switches between French and US (QWERTY)**, Shift + Caps Lock still locks capitals.
 
 Install it to disk with `sudo caelestia-install`. **No network is needed at any point**, because the installer copies the live system rather than downloading packages. It needs a machine booted in UEFI mode, refuses the disk the live system runs from, and writes nothing before you retype the disk path.
 
