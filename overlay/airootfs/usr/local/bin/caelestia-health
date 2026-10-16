@@ -38,7 +38,7 @@ check_libs() {
     local pkg f missing
     for pkg in quickshell-git caelestia-shell; do
         pacman -Q "$pkg" &>/dev/null || continue
-        missing=$(pacman -Qlq "$pkg" | grep -E '\.so$|/usr/bin/quickshell$' | while read -r f; do
+        missing=$(pacman -Qlq "$pkg" 2>/dev/null | grep -E '\.so$|/usr/bin/quickshell$' | while read -r f; do
             [[ -f $f ]] && ldd "$f" 2>/dev/null | awk '/not found/ { print $1 }'
         done | sort -u | tr '\n' ' ')
         [[ -n $missing ]] || continue
