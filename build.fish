@@ -77,8 +77,9 @@ end
 
 if set -q _flag_clean
     _step 'Nettoyage'
-    rm -rf "$work" "$out"
-    echo "  work/ et out/ supprimes"
+    # Fichiers crees par mkarchiso, donc a root
+    sudo rm -rf "$out"
+    echo "  out/ supprime"
 end
 
 # --- 1. depot AUR local ---
@@ -101,6 +102,10 @@ or _die 'generation du profil echouee'
 
 # --- 3. ISO ---
 _step 'Construction de l\'ISO (mkarchiso, root requis)'
+# work/ est TOUJOURS vide avant mkarchiso. Il marque chaque etape faite d'un
+# fichier temoin et saute les etapes deja marquees : un work/ d'un build
+# precedent donnerait une ISO avec l'ancien systeme de fichiers, sans erreur.
+sudo rm -rf "$work"
 mkdir -p "$out"
 sudo mkarchiso -v -w "$work" -o "$out" "$profile"
 or _die 'mkarchiso a echoue'
