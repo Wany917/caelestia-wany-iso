@@ -6,7 +6,7 @@
 #
 # mkarchiso doit tourner en root : le script demande sudo au moment voulu, pas avant.
 
-argparse -n 'build.fish' 'h/help' 'skip-aur' 'clean' -- $argv
+argparse -n 'build.fish' 'h/help' 'skip-aur' 'clean' 'allow-outdated' -- $argv
 or exit 1
 
 set -g root (realpath (dirname (status filename)))
@@ -15,10 +15,11 @@ set -g work "$root/work"
 set -g profile "$root/profile"
 
 if set -q _flag_help
-    echo 'usage: ./build.fish [--skip-aur] [--clean]'
+    echo 'usage: ./build.fish [--skip-aur] [--clean] [--allow-outdated]'
     echo
-    echo '  --skip-aur   reutilise le depot local existant (pas de recollecte)'
-    echo '  --clean      repart de zero (depot, work/, out/)'
+    echo '  --skip-aur         reutilise le depot local existant (pas de recollecte)'
+    echo '  --clean            repart de zero (depot, work/, out/)'
+    echo '  --allow-outdated   construit meme si cette machine a des mises a jour en attente'
     exit
 end
 
@@ -49,6 +50,30 @@ if test $avail_gb -lt 15
     _die "seulement $avail_gb Go libres sur $root, il en faut ~15-20"
 end
 echo "  ok  $avail_gb Go libres"
+
+# Machine a jour. mkarchiso installe les paquets officiels du jour, mais les
+# paquets AUR viennent de cette machine, compiles contre SES bibliotheques. Si
+# elle est en retard (Qt surtout), l'ISO melange deux generations et le shell ne
+# demarre pas. Meme methode que checkupdates : base de synchro temporaire,
+# base locale reelle. --disable-sandbox : le bac a sable du telechargeur de
+# pacman 7 (utilisateur alpm, Landlock) echoue sous fakeroot.
+if not set -q _flag_allow_outdated
+    set -l tmp (mktemp -d)
+    ln -s /var/lib/pacman/local "$tmp/local"
+    fakeroot -- pacman --dbpath "$tmp" --logfile /dev/null --disable-sandbox -Sy >/dev/null 2>&1
+    or begin
+        rm -rf "$tmp"
+        _die 'synchronisation des depots impossible (reseau ?). --allow-outdated pour passer outre'
+    end
+    set -l pending (pacman --dbpath "$tmp" -Qu 2>/dev/null)
+    rm -rf "$tmp"
+    if test (count $pending) -gt 0
+        printf '      %s\n' $pending[1..5]
+        test (count $pending) -gt 5; and echo "      ..."
+        _die (count $pending)" mise(s) a jour en attente. Lance 'sudo pacman -Syu', puis relance : le depot AUR dira quoi recompiler. (--allow-outdated pour passer outre)"
+    end
+    echo "  ok  machine a jour"
+end
 
 if set -q _flag_clean
     _step 'Nettoyage'
