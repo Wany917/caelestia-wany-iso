@@ -16,3 +16,7 @@
 
 # Morceaux de l ISO prepares pour une release (regeneres par make-release.fish)
 /release/
+
+# Brouillons personnels (message a l amont deja poste : discussions #1842 de
+# caelestia-dots/shell). Rien a faire dans un depot public.
+/message-to-soramanew.md
