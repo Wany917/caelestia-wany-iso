@@ -1,0 +1,7 @@
+caelestia-wany live session. The desktop runs on tty1 (Ctrl+Alt+F1).
+To install to disk: caelestia-install (no network needed)
+
+For Wi-Fi, authenticate to the wireless network using the iwctl utility.
+For mobile broadband (WWAN) modems, connect with the mmcli utility.
+Ethernet, WLAN and WWAN interfaces using DHCP should work automatically.
+

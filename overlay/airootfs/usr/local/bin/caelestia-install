@@ -233,6 +233,10 @@ rm -rf \
 # Liens 'wants' devenus orphelins (leurs unites viennent d'etre supprimees)
 find "$TARGET/etc/systemd/system" -xtype l -delete 2>/dev/null || true
 
+# Message d'accueil du live (installer, Wi-Fi via iwctl) : faux sur le systeme
+# installe, qui tourne sous NetworkManager.
+: > "$TARGET/etc/motd"
+
 # --- noyau ---
 # mkarchiso vide /boot de l'airootfs : copier le systeme live donne un /boot sans
 # noyau, donc un systeme non amorcable. On le reprend dans /usr/lib/modules.
