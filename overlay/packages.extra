@@ -50,6 +50,10 @@ qt6-wayland
 noto-fonts
 noto-fonts-cjk
 noto-fonts-emoji
+# Police par defaut de caelestia-shell 2.x (titres, texte, etiquettes), que le
+# paquet ne declare pas : sans elle le shell retombe sur une police de
+# remplacement. AUR, OFL-1.1, donc redistribuable.
+ttf-google-sans-flex-variable
 
 # --- Installation sur disque ---
 archinstall
