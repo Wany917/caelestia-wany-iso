@@ -5,7 +5,7 @@
 # overlay/ l'est. Notre difference avec releng reste ainsi explicite et se reapplique
 # telle quelle quand archiso met releng a jour.
 
-argparse -n 'make-profile.fish' 'h/help' 'rice=' -- $argv
+argparse -n 'make-profile.fish' 'h/help' 'rice=' 'rice-ref=' -- $argv
 or exit 1
 
 set -g root (realpath (dirname (status filename))/..)
@@ -18,11 +18,17 @@ set -g repo_name caelestia-wany
 # Depot du rice a embarquer dans l'image
 set -g rice_src "$HOME/.local/share/caelestia"
 set -q _flag_rice; and set rice_src (realpath $_flag_rice)
+# Le rice est embarque depuis un commit, jamais depuis le dossier de travail : en
+# aout, la copie du dossier avait emporte des fichiers ignores par git
+# (fish_variables avec des chemins de la machine de build, scheme courant...).
+set -g rice_ref main
+set -q _flag_rice_ref; and set rice_ref $_flag_rice_ref
 
 if set -q _flag_help
-    echo 'usage: scripts/make-profile.fish [--rice <chemin>]'
+    echo 'usage: scripts/make-profile.fish [--rice <chemin>] [--rice-ref <ref>]'
     echo
-    echo "  --rice   depot caelestia-wany a embarquer (defaut : $rice_src)"
+    echo "  --rice       depot caelestia-wany a embarquer (defaut : $rice_src)"
+    echo "  --rice-ref   commit, branche ou tag du rice (defaut : $rice_ref)"
     exit
 end
 
@@ -35,6 +41,8 @@ end
 
 test -d "$releng"; or _die "profil releng introuvable. Installe : sudo pacman -S archiso"
 test -d "$rice_src"; or _die "depot du rice introuvable : $rice_src"
+git -C "$rice_src" rev-parse --verify -q "$rice_ref^{commit}" >/dev/null
+or _die "ref '$rice_ref' introuvable dans $rice_src"
 test -f "$repo_dir/$repo_name.db.tar.zst"; or _die "depot local absent. Lance d'abord scripts/build-aur-repo.fish"
 
 # --- base releng ---
@@ -80,11 +88,33 @@ ln -sf /dev/null "$profile/airootfs/etc/systemd/system/getty@tty1.service"
 # --- rice embarque dans l'image ---
 # Dans le home de l'utilisateur live, pas dans /root : Hyprland refuse de tourner
 # en root, la session live passe donc par un vrai utilisateur.
-_out "integration du rice depuis $rice_src"
-set -l dst "$profile/airootfs/home/caelestia/.local/share/caelestia"
-mkdir -p (dirname "$dst")
-# .git exclu : plusieurs dizaines de Mo d'historique inutiles dans une image live
-rsync -a --exclude '.git' --exclude 'local-repo' "$rice_src/" "$dst/"
+# git archive : uniquement les fichiers suivis, au commit demande. Pas de .git
+# (plusieurs dizaines de Mo d'historique inutiles dans une image live).
+set -l rice_commit (git -C "$rice_src" rev-parse --short "$rice_ref^{commit}")
+_out "integration du rice : $rice_ref ($rice_commit) depuis $rice_src"
+if test "$(git -C "$rice_src" rev-parse HEAD)" = "$(git -C "$rice_src" rev-parse "$rice_ref^{commit}")"
+    set -l dirty (git -C "$rice_src" status --porcelain)
+    if test (count $dirty) -gt 0
+        set_color yellow
+        echo "  !!  "(count $dirty)" modification(s) non commitee(s) dans le rice : elles ne seront PAS dans l'ISO"
+        set_color normal
+    end
+end
+set -l live_home "$profile/airootfs/home/caelestia"
+set -l dst "$live_home/.local/share/caelestia"
+mkdir -p "$dst"
+git -C "$rice_src" archive "$rice_ref" | tar -x -C "$dst"
+or _die "extraction du rice echouee"
+
+# Reglages machine de la session live, lus par hypr-user.lua du rice. Pas de
+# verrouillage au demarrage : le compte live n'a pas de mot de passe, l'ecran de
+# verrouillage ne ferait que derouter. Le clavier reste celui du rice (fr).
+mkdir -p "$live_home/.config/caelestia"
+printf '%s\n' \
+    '-- Live session settings, written when the ISO was built.' \
+    'return {' \
+    '    lock_on_start = false,' \
+    '}' > "$live_home/.config/caelestia/hypr-local.lua"
 
 # --- identite de l'ISO ---
 _out "personnalisation de profiledef.sh"
@@ -94,6 +124,25 @@ sed -i \
     -e 's|^iso_publisher=.*|iso_publisher="caelestia by soramanew <https://github.com/caelestia-dots>"|' \
     -e 's|^iso_application=.*|iso_application="caelestia-wany live"|' \
     "$profile/profiledef.sh"
+
+# Menu de demarrage : "caelestia-wany live" plutot que "Arch Linux install
+# medium", qui laissait croire a l'ISO officielle d'Arch.
+_out "menu de demarrage"
+set -l boot_cfgs $profile/efiboot/loader/entries/*.conf $profile/grub/*.cfg $profile/syslinux/*.cfg
+sed -i 's/Arch Linux install medium/caelestia-wany live/g' $boot_cfgs
+if grep -l 'Arch Linux install medium' $boot_cfgs >/dev/null
+    _die "entrees de demarrage non renommees : la structure de releng a change"
+end
+
+# Ce qui a servi a construire l'image, pour les rapports de bug :
+#   cat /etc/caelestia-wany-release
+set -l iso_commit (git -C "$root" rev-parse --short HEAD)
+test -n "$(git -C "$root" status --porcelain -- overlay scripts)"; and set iso_commit "$iso_commit-dirty"
+printf '%s\n' \
+    "ISO_COMMIT=$iso_commit" \
+    "RICE_REF=$rice_ref" \
+    "RICE_COMMIT=$rice_commit" \
+    "BUILD_DATE="(date -u +%Y-%m-%dT%H:%MZ) > "$profile/airootfs/etc/caelestia-wany-release"
 
 # Droits d'execution. mkarchiso copie l'airootfs avec 'cp -af --no-preserve=mode' :
 # TOUT le bit +x est perdu, seuls les chemins listes dans file_permissions le
@@ -108,10 +157,11 @@ test (count $perms) -gt 0; or _die "aucun script trouve dans overlay/airootfs/us
 # et chmod -fR dans mkarchiso).
 #
 # Une seule entree regle deux problemes d'un coup :
-#   - le proprietaire. Sans elle, le home appartient a root et Hyprland echoue sur
-#     "Couldn't create config home directory (Permission denied)". Un chown au
-#     demarrage corrigeait ca, mais courait contre greetd et perdait sur materiel
-#     reel. L'UID 1000 est fixe par /etc/sysusers.d/caelestia-live.conf.
+#   - le proprietaire. Sans elle, le home appartient a root, et si la mise en
+#     place au demarrage ne passe pas, Hyprland echoue sur "Couldn't create config
+#     home directory (Permission denied)" (issue #2). L'UID 1000 est fixe par
+#     /etc/sysusers.d/caelestia-live.conf. Fixer l'etat dans l'image evite de
+#     dependre du service de demarrage pour ca.
 #   - le bit +x, que mkarchiso jette (cp --no-preserve=mode). Il faut le rendre a
 #     hypr/scripts/configs.fish, sans quoi Hyprland ne trouve pas les fichiers
 #     qu'il tente de sourcer, et a wsaction.fish pour les raccourcis de workspace.
@@ -150,7 +200,8 @@ begin
     echo; echo "[$repo_name]"; echo "Server = file://$repo_dir"
 end > "$tmp/pacman.conf"
 mkdir -p "$tmp/db"
-fakeroot pacman --config "$tmp/pacman.conf" --dbpath "$tmp/db" -Sy >/dev/null 2>&1
+# --disable-sandbox : le bac a sable du telechargeur de pacman 7 echoue sous fakeroot
+fakeroot pacman --config "$tmp/pacman.conf" --dbpath "$tmp/db" --disable-sandbox -Sy >/dev/null 2>&1
 
 set -l bad
 for p in (sed '/^[[:blank:]]*#.*/d;s/#.*//;/^[[:blank:]]*$/d' "$profile/packages.x86_64")
