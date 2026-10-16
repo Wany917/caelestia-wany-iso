@@ -40,7 +40,7 @@ end
 # --- prerequis ---
 _step 'Verification des prerequis'
 for tool in mkarchiso repo-add rsync
-    command -q $tool; or _die "$tool introuvable. Installe : sudo pacman -S --needed archiso devtools rsync"
+    command -q $tool; or _die "$tool introuvable. Installe : paru -S --needed archiso devtools rsync"
 end
 echo "  ok  outillage present"
 

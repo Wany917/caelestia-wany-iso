@@ -39,7 +39,7 @@ function _die -a text
     set_color -o red; echo "[profile] $text" >&2; set_color normal; exit 1
 end
 
-test -d "$releng"; or _die "profil releng introuvable. Installe : sudo pacman -S archiso"
+test -d "$releng"; or _die "profil releng introuvable. Installe : paru -S archiso"
 test -d "$rice_src"; or _die "depot du rice introuvable : $rice_src"
 git -C "$rice_src" rev-parse --verify -q "$rice_ref^{commit}" >/dev/null
 or _die "ref '$rice_ref' introuvable dans $rice_src"

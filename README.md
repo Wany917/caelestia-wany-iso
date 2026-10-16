@@ -79,7 +79,7 @@ Three moving parts, because pacstrap cannot read the AUR and a dotfiles installe
 Needs an up-to-date Arch host with `archiso` and `devtools`, the AUR packages installed through `paru`, and about 20 GB of free space.
 
 ```sh
-sudo pacman -S --needed archiso devtools
+paru -S --needed archiso devtools
 git clone git@github.com:Wany917/caelestia-wany-iso.git
 cd caelestia-wany-iso
 ./build.fish
