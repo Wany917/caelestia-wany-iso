@@ -70,7 +70,7 @@ if not set -q _flag_allow_outdated
     if test (count $pending) -gt 0
         printf '      %s\n' $pending[1..5]
         test (count $pending) -gt 5; and echo "      ..."
-        _die (count $pending)" mise(s) a jour en attente. Lance 'sudo pacman -Syu', puis relance : le depot AUR dira quoi recompiler. (--allow-outdated pour passer outre)"
+        _die (count $pending)" mise(s) a jour en attente. Mets la machine a jour avec paru, puis relance : le depot AUR dira quoi recompiler. (--allow-outdated pour passer outre)"
     end
     echo "  ok  machine a jour"
 end
