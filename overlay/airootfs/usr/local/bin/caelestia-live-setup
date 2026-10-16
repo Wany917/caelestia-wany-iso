@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Applique le rice dans la session live.
 #
-# L'utilisateur n'est PLUS cree ici : c'est systemd-sysusers qui s'en charge
-# (/etc/sysusers.d/caelestia-live.conf), dans sysinit.target, donc bien avant
-# greetd. Le creer ici reposait sur un simple Before=greetd.service, ce qui a
-# suffi en machine virtuelle mais pas sur une machine reelle : greetd a boucle
-# sur "configured default session user 'caelestia' not found" jusqu'a abandonner.
+# L'utilisateur est cree par systemd-sysusers (/etc/sysusers.d/caelestia-live.conf)
+# et son home lui appartient des la construction de l'image (file_permissions
+# dans profiledef.sh). Ce service ne fait que la mise en place du rice et retire
+# le mot de passe : meme s'il echoue, greetd ouvre la session.
 #
-# Ce service ne fait donc plus que la mise en place du rice. Meme s'il echoue,
-# la session ouvre : l'utilisateur existe de toute facon.
+# Historique : en aout, les echecs sur materiel reel ont ete pris pour une course
+# avec greetd. La vraie cause etait la condition du service sur
+# /run/archiso/bootmnt, que copytoram supprime : il ne tournait jamais.
 
 set -uo pipefail
 
@@ -18,18 +18,19 @@ STAMP=/run/caelestia-live-setup.done
 
 log() { echo "[caelestia-live] $*"; }
 
-[[ -e $STAMP ]] && { log 'deja fait'; exit 0; }
+[[ -e $STAMP ]] && { log 'already done'; exit 0; }
 
 # Filet de securite : si sysusers n'a pas fait son office, on ne laisse pas
 # greetd boucler dans le vide.
 if ! id "$LIVE_USER" &>/dev/null; then
-    log "ATTENTION : $LIVE_USER absent alors que sysusers aurait du le creer"
+    log "WARNING: $LIVE_USER missing, sysusers should have created it"
     useradd -M -d "$LIVE_HOME" -s /usr/bin/fish \
         -G wheel,audio,video,input,storage,seat "$LIVE_USER" \
-        || log "creation de secours en echec"
+        || log 'fallback user creation failed'
 fi
 
-# Session live : aucun mot de passe a saisir.
+# Session live : aucun mot de passe a saisir (login TTY, ecran de verrouillage,
+# invites polkit). sysusers cree le compte verrouille ('!*').
 passwd -d "$LIVE_USER" >/dev/null 2>&1 || true
 
 mkdir -p "$LIVE_HOME"
@@ -38,4 +39,4 @@ chown "$LIVE_USER:$LIVE_USER" "$LIVE_HOME"
 /usr/local/bin/caelestia-apply-rice "$LIVE_HOME" "$LIVE_USER"
 
 touch "$STAMP"
-log 'session prete'
+log 'live session ready'

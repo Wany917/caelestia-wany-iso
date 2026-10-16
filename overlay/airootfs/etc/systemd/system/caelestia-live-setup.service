@@ -1,10 +1,15 @@
 [Unit]
-Description=Prepare la session live caelestia
-# Doit finir avant greetd : il lance le bureau pour l'utilisateur que ce
-# service cree, et applique le rice dans son home.
+Description=Prepare the caelestia live session
+# Doit finir avant greetd : il applique le rice dans le home de l'utilisateur
+# que greetd connecte.
 Before=greetd.service
 After=local-fs.target
-ConditionPathExists=/run/archiso/bootmnt
+# /run/archiso et non /run/archiso/bootmnt. Sur une vraie machine (cle USB, assez
+# de RAM), archiso copie l'image en memoire (copytoram=auto) puis demonte ET
+# supprime bootmnt. Conditionne sur bootmnt, ce service etait saute : home a root,
+# Hyprland en "Permission denied", compte verrouille (issues #1 et #2).
+# En VM l'ISO etait un CD, cas ou archiso ne copie jamais en RAM.
+ConditionPathIsDirectory=/run/archiso
 
 [Service]
 Type=oneshot
