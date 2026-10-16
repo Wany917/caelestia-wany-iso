@@ -3,6 +3,11 @@
 # pese 67 Mo (au-dessus du seuil d'avertissement GitHub).
 /local-repo/
 
+# Paquets construits depuis pkgbuilds/ (sources telechargees, src/, pkg/, .pkg.tar.zst) :
+# seul le PKGBUILD est versionne.
+/pkgbuilds/*/*
+!/pkgbuilds/*/PKGBUILD
+
 # Sorties de mkarchiso
 /out/
 /work/

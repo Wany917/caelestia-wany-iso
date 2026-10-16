@@ -42,7 +42,9 @@ function _die -a text
 end
 
 # Cherche le paquet a embarquer pour un nom donne : la version INSTALLEE ici (le
-# binaire qui tourne et a ete eprouve), sinon la plus haute du cache.
+# binaire qui tourne et a ete eprouve), sinon la plus haute du cache. pkgbuilds/
+# contient les paquets dont la version AUR ne se construit plus (makepkg y depose
+# le .pkg.tar.zst).
 # Exclut les paquets -debug (generes a cote, inutiles et volumineux).
 #
 # A version egale, le fichier le plus recent gagne : un 'paru --rebuild' garde le
@@ -50,7 +52,7 @@ end
 # y depose ce qu'il installe pendant le build de l'ISO). Trier par chemin faisait
 # gagner cette vieille copie.
 function _find_pkg -a name
-    set -l dirs "$HOME/.cache/paru/clone/$name" /var/cache/pacman/pkg
+    set -l dirs "$HOME/.cache/paru/clone/$name" "$root/pkgbuilds/$name" /var/cache/pacman/pkg
     set -l ver (pacman -Q $name 2>/dev/null | string split ' ')[2]
     set -l pattern "$name-[0-9r]*.pkg.tar.zst"
     test -n "$ver"; and set pattern "$name-$ver-*.pkg.tar.zst"

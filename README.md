@@ -97,6 +97,8 @@ The build stops early, with the command to run, when:
 - an AUR package is missing from the `paru`/`pacman` caches. Nothing is compiled behind your back: `quickshell-git` alone takes the better part of an hour.
 - a package built against Qt's private API (`quickshell-git`) was compiled for another Qt version. It would crash on boot.
 
+Packages whose AUR version no longer builds are kept in `pkgbuilds/`, with sources pinned to a commit. Build each one with `makepkg -f` in its folder, then install the result with `paru -U`.
+
 The rice comes from `~/.local/share/caelestia` at the `main` branch. Change it with `scripts/make-profile.fish --rice <path> --rice-ref <ref>`. Uncommitted changes are never embedded.
 
 ## Testing it

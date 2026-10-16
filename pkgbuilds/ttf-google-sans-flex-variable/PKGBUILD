@@ -1,0 +1,25 @@
+# Paquet local, du meme nom que celui de l'AUR (1.0.0-1). Celui-ci telecharge
+# depuis la branche main de google/fonts un fichier renomme le 10 septembre 2026
+# (axe GRAD retire) : 404, il ne se construit plus. Ici la source est epinglee sur
+# un commit, un renommage ne casse donc plus rien. Construit par :
+#   cd pkgbuilds/ttf-google-sans-flex-variable && makepkg -f
+# scripts/build-aur-repo.fish reprend le paquet produit dans ce dossier.
+
+pkgname=ttf-google-sans-flex-variable
+pkgver=5.000
+pkgrel=1
+pkgdesc="Google's signature Sans Flex font (variable)"
+arch=('any')
+url='https://fonts.google.com/specimen/Google+Sans+Flex'
+license=('OFL-1.1')
+_commit=bd8f81ddb5c74d5c8897b36ad88b440266245103
+_base="https://raw.githubusercontent.com/google/fonts/$_commit/ofl/googlesansflex"
+source=("GoogleSansFlex-$pkgver.ttf::$_base/GoogleSansFlex%5BROND,opsz,slnt,wdth,wght%5D.ttf"
+        "OFL-$pkgver.txt::$_base/OFL.txt")
+sha256sums=('a9ac770798857d5e8ac593ced42b22e40a7c08cec98319f92b0eccc2783a77ba'
+            'fc13d69f63e36d284b6e383d4d1463d8ad404f0aa065e57cf961252d51063137')
+
+package() {
+    install -Dm644 "GoogleSansFlex-$pkgver.ttf" "$pkgdir/usr/share/fonts/TTF/GoogleSansFlex[ROND,opsz,slnt,wdth,wght].ttf"
+    install -Dm644 "OFL-$pkgver.txt" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
