@@ -40,6 +40,21 @@ set -q _flag_tag; and set tag $_flag_tag
 _out "ISO : $base ("(du -h "$iso" | cut -f1)")"
 _out "tag : $tag"
 
+# --- commit qui a construit l'ISO ---
+# Lu dans l'image (/etc/caelestia-wany-release), pas pris sur main : main a pu
+# avancer depuis le build, et le tag doit designer exactement ce qui est publie.
+set -l lba (xorriso -indev "$iso" -find /arch/x86_64/airootfs.sfs -exec report_lba -- 2>/dev/null \
+    | awk -F, '/airootfs.sfs/ { gsub(/ /, "", $2); print $2 }')
+test -n "$lba"; or _die "airootfs.sfs introuvable dans l'ISO"
+set -l info (unsquashfs -o (math "$lba * 2048") -cat "$iso" etc/caelestia-wany-release 2>/dev/null)
+set -l built (string match -r '^ISO_COMMIT=(.+)' -- $info)[2]
+test -n "$built"; or _die "pas de /etc/caelestia-wany-release dans l'ISO : impossible de savoir d'ou elle vient"
+string match -q -- '*-dirty' $built
+and _die "ISO construite avec des modifications non commitees ($built) : commite et reconstruis"
+set -l target (git -C "$root" rev-parse --verify -q "$built^{commit}")
+or _die "commit $built inconnu de ce depot"
+_out "commit : $built ("(string match -r '^RICE_COMMIT=(.+)' -- $info)[2]" pour le rice)"
+
 # --- decoupe ---
 rm -rf "$rel"; mkdir -p "$rel"
 _out "decoupe en morceaux de $part_size"
@@ -77,8 +92,14 @@ if set -q _flag_dry_run
 end
 
 # --- publication ---
-_out "creation de la release $tag"
+# Le tag est cree par GitHub sur ce commit : il doit deja y etre.
+git -C "$root" fetch -q origin
+git -C "$root" merge-base --is-ancestor "$target" origin/main
+or _die "le commit $built n'est pas sur origin/main : pousse d'abord"
+
+_out "creation de la release $tag sur $built"
 gh release create "$tag" "$rel"/*.part "$rel/SHA256SUMS" \
+    --target "$target" \
     --title "caelestia-wany $tag" \
     --notes-file "$root/release-notes.md"
 or _die 'gh release create a echoue'
