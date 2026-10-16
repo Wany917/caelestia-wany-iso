@@ -66,7 +66,15 @@ if not set -q _flag_allow_outdated
         _die 'synchronisation des depots impossible (reseau ?). --allow-outdated pour passer outre'
     end
     set -l pending (pacman --dbpath "$tmp" -Qu 2>/dev/null)
+    # [multilib] reste desactive dans le profil : lib32-*, steam, wine... en
+    # retard ici ne changent rien a ce qui part dans l'image.
+    set -l multilib (pacman --dbpath "$tmp" -Slq multilib 2>/dev/null)
     rm -rf "$tmp"
+    set -l relevant
+    for line in $pending
+        contains -- (string split -f1 ' ' -- $line) $multilib; or set -a relevant $line
+    end
+    set pending $relevant
     if test (count $pending) -gt 0
         printf '      %s\n' $pending[1..5]
         test (count $pending) -gt 5; and echo "      ..."
