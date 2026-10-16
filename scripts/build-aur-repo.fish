@@ -41,20 +41,43 @@ function _die -a text
     exit 1
 end
 
-# Cherche le paquet compile le plus recent pour un nom donne.
+# Cherche le paquet a embarquer pour un nom donne : la version INSTALLEE ici (le
+# binaire qui tourne et a ete eprouve), sinon la plus haute du cache.
 # Exclut les paquets -debug (generes a cote, inutiles et volumineux).
+#
+# A version egale, le fichier le plus recent gagne : un 'paru --rebuild' garde le
+# meme nom de fichier, et /var/cache/pacman/pkg conserve l'ancienne copie (pacstrap
+# y depose ce qu'il installe pendant le build de l'ISO). Trier par chemin faisait
+# gagner cette vieille copie.
 function _find_pkg -a name
     set -l dirs "$HOME/.cache/paru/clone/$name" /var/cache/pacman/pkg
+    set -l ver (pacman -Q $name 2>/dev/null | string split ' ')[2]
+    set -l pattern "$name-[0-9r]*.pkg.tar.zst"
+    test -n "$ver"; and set pattern "$name-$ver-*.pkg.tar.zst"
     set -l found
     for d in $dirs
         test -d "$d"; or continue
-        for f in (find "$d" -maxdepth 1 -name "$name-[0-9r]*.pkg.tar.zst" ! -name '*-debug-*' 2>/dev/null)
-            set -a found "$f"
-        end
+        set -a found (find "$d" -maxdepth 1 -name "$pattern" ! -name '*-debug-*' 2>/dev/null)
     end
     test (count $found) -gt 0; or return 1
-    # tri par version : le nom de fichier porte pkgver-pkgrel
-    printf '%s\n' $found | sort -V | tail -1
+    if test -n "$ver"
+        ls -t $found | head -1
+    else
+        # tri par version : le nom de fichier porte pkgver-pkgrel
+        printf '%s\n' $found | sort -V | tail -1
+    end
+end
+
+# Version de Qt dont un paquet a utilise les en-tetes PRIVES : leur chemin,
+# /usr/include/qt6/<Module>/<version>/, reste grave dans le binaire. Ces paquets
+# (quickshell) plantent des que Qt change, meme d'une version mineure. Rien en
+# sortie = pas d'API privee, le paquet survit aux mises a jour de Qt.
+function _qt_private_version -a pkgfile
+    set -l tmp (mktemp -d)
+    bsdtar -xf "$pkgfile" -C "$tmp" usr 2>/dev/null
+    find "$tmp" -type f -exec grep -aohE '/usr/include/qt6/Qt[A-Za-z]+/6\.[0-9]+\.[0-9]+/' {} + 2>/dev/null \
+        | string match -r '6\.[0-9]+\.[0-9]+' | sort -u
+    rm -rf "$tmp"
 end
 
 test -f "$conf"; or _die "liste des paquets introuvable : $conf"
@@ -64,6 +87,10 @@ if set -q _flag_clean
     rm -rf "$repo_dir"
 end
 mkdir -p "$repo_dir"
+# Le depot repart de zero a chaque fois : repo-add indexe tout le dossier, donc un
+# ancien fichier (paquet retire de la liste, version depassee) finissait dans la
+# base. La copie coute quelques secondes.
+find "$repo_dir" -maxdepth 1 \( -name '*.pkg.tar.zst' -o -name "$repo_name.*" \) -delete
 
 # Liste des paquets. Retire les commentaires de fin de ligne AVANT de trim :
 # sinon "quickshell-git  # commentaire" devient un nom de paquet invalide.
@@ -78,7 +105,7 @@ for p in $packages
         set -a missing $p
         set_color red; echo "  manquant  $p"; set_color normal
     else
-        cp -u "$f" "$repo_dir/"
+        cp "$f" "$repo_dir/"
         set -a collected (basename "$f")
         echo "  ok        "(basename "$f")
     end
@@ -92,12 +119,35 @@ if test (count $missing) -gt 0
     _die (count $missing)" paquet(s) manquant(s), depot incomplet"
 end
 
-# Construit la base de donnees pacman du depot.
-# On repart d'une base vierge : la reconstruire evite les avertissements
-# "une entree existait deja" a chaque rejeu, et garantit qu'un paquet retire de
-# aur-packages.conf disparait bien de la base.
+# Paquets compiles contre un autre Qt que celui qui ira dans l'ISO. mkarchiso
+# installe le Qt du jour (build.fish verifie que cette machine est a jour, donc
+# c'est aussi le sien) : un quickshell compile avant la derniere mise a jour de Qt
+# ne demarrerait pas, et l'ISO s'ouvrirait sur un bureau vide.
+set -l qt (pacman -Q qt6-base 2>/dev/null | string split ' ')[2]
+set qt (string replace -r -- '-[^-]+$' '' "$qt")
+set -l stale
+for f in $repo_dir/*.pkg.tar.zst
+    string match -q -- '*-any.pkg.tar.zst' $f; and continue
+    set -l name (bsdtar -xOf "$f" .PKGINFO | string match -r '^pkgname = (.+)')[2]
+    for v in (_qt_private_version "$f")
+        if test "$v" != "$qt"
+            set -a stale $name
+            set_color red; echo "  qt        $name compile contre Qt $v, l'ISO aura Qt $qt"; set_color normal
+        end
+    end
+end
+if test (count $stale) -gt 0
+    echo
+    _out yellow "Recompile-les contre le Qt actuel, puis relance :"
+    echo "    paru -S --rebuild --noconfirm $stale"
+    echo
+    _die (count $stale)" paquet(s) a recompiler"
+end
+echo "  ok        API privee de Qt alignee sur Qt $qt"
+
+# Construit la base de donnees pacman du depot, vierge (videe plus haut avec les
+# paquets) : elle ne contient que ce qui vient d'etre collecte.
 _out cyan "generation de la base $repo_name.db.tar.zst"
-rm -f "$repo_dir/$repo_name".{db,files}*
 repo-add --quiet --new --remove "$repo_dir/$repo_name.db.tar.zst" "$repo_dir"/*.pkg.tar.zst
 or _die "repo-add a echoue"
 
