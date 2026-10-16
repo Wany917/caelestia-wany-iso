@@ -8,12 +8,13 @@
 #
 #   --offline   coupe le reseau de la VM. C'est LE test qui prouve que
 #               l'installation hors-ligne tient vraiment.
+#   --cdrom     branche l'ISO comme un CD au lieu d'une cle USB (voir plus bas)
 #   --display   vnc (defaut, aucun paquet a installer) ou gtk (fenetre native,
 #               demande qemu-ui-gtk)
 #
 # Tout se passe dans vm/ : rien n'est ecrit en dehors.
 
-argparse -n 'test-vm.fish' 'h/help' 'live' 'install' 'disk' 'offline' 'display=' 'size=' -- $argv
+argparse -n 'test-vm.fish' 'h/help' 'live' 'install' 'disk' 'offline' 'cdrom' 'display=' 'size=' -- $argv
 or exit 1
 
 set -g root (realpath (dirname (status filename))/..)
@@ -29,7 +30,7 @@ set -g size 30G
 set -q _flag_size; and set size $_flag_size
 
 if set -q _flag_help
-    echo 'usage: scripts/test-vm.fish [--live|--install|--disk] [--offline] [--display vnc|gtk] [--size 30G]'
+    echo 'usage: scripts/test-vm.fish [--live|--install|--disk] [--offline] [--cdrom] [--display vnc|gtk] [--size 30G]'
     exit
 end
 
@@ -86,12 +87,25 @@ set -l args \
     -drive if=pflash,format=raw,readonly=on,file=$ovmf_code \
     -drive if=pflash,format=raw,file=$vars \
     -device intel-hda -device hda-duplex \
-    -usb -device usb-tablet
+    -device qemu-xhci,id=xhci -device usb-tablet,bus=xhci.0
+
+# L'ISO en cle USB par defaut, comme sur une vraie machine. Ce n'est pas un
+# detail : avec 8 Go de RAM et un support non optique, archiso copie l'image en
+# memoire (copytoram=auto) puis demonte le support. En CD, il ne le fait jamais.
+# Tous nos tests d'aout bootaient en CD, et ont rate le bug des issues #1 et #2.
+set -l iso_args
+if set -q _flag_cdrom
+    set iso_args -cdrom "$iso" -boot d
+else
+    set iso_args \
+        -drive if=none,id=stick,format=raw,readonly=on,file=$iso \
+        -device usb-storage,bus=xhci.0,drive=stick,removable=on,bootindex=0
+end
 
 # Carte graphique : virtio-gpu si disponible (bien plus fluide), sinon la VGA
 # standard, pilotee cote noyau par bochs-drm. Hyprland exige un peripherique
 # DRM/KMS et bochs-drm en est un ; le rendu passe simplement par llvmpipe.
-# qemu-base ne fournit PAS virtio-vga, il faut qemu-desktop pour l'avoir.
+# qemu-base ne fournit PAS virtio-vga : il faut qemu-hw-display-virtio-vga.
 if qemu-system-x86_64 -device help 2>&1 | grep -q '"virtio-vga"'
     set -a args -device virtio-vga
 else
@@ -107,13 +121,15 @@ else
     set -a args -nic user,model=virtio-net-pci
 end
 
+set -l medium 'cle USB'
+set -q _flag_cdrom; and set medium CD
 switch $mode
     case live
-        set -a args -cdrom "$iso" -boot d
-        _out "demarrage de l'ISO : "(basename "$iso")
+        set -a args $iso_args
+        _out "demarrage de l'ISO ($medium) : "(basename "$iso")
     case install
-        set -a args -cdrom "$iso" -boot d -drive file=$disk,if=virtio,format=qcow2
-        _out "ISO + disque vierge. Dans la VM : sudo caelestia-install"
+        set -a args $iso_args -drive file=$disk,if=virtio,format=qcow2
+        _out "ISO ($medium) + disque vierge. Dans la VM : sudo caelestia-install"
     case disk
         set -a args -drive file=$disk,if=virtio,format=qcow2
         _out 'demarrage du disque installe (sans ISO)'
