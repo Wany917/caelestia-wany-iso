@@ -9,6 +9,7 @@ An Arch Linux ISO that boots straight into **[caelestia](https://github.com/cael
 - **The installer is in English** and asks for your keyboard layout, which the installed desktop then uses.
 - **The installed system has a login screen** (tuigreet) instead of opening the desktop without a password.
 - **The live account no longer survives installation.** It was left behind and recreated at every boot.
+- **Updates no longer break the desktop silently.** The installed system holds back `caelestia-shell`, `libcava` and `qt6-m3shapes-git`, whose upgrade by `paru` fails halfway and leaves a black screen. After every update, a check warns you with the exact command to run if the shell would not start (for example `quickshell-git` after a Qt update).
 - Rebuilt against current Arch packages, with the Lua-based Hyprland config from upstream caelestia.
 
 ## Getting the ISO

@@ -198,7 +198,9 @@ mkfs.ext4 -F -L caelestia "$ROOT" >/dev/null
 
 mount "$ROOT" "$TARGET"
 mkdir -p "$TARGET/boot"
-mount "$ESP" "$TARGET/boot"
+# ESP lisible par root seul : sinon bootctl previent que la graine aleatoire du
+# chargeur est lisible par tous. genfstab reprend ces options dans le fstab.
+mount -o fmask=0077,dmask=0077 "$ESP" "$TARGET/boot"
 
 # --- copie du systeme live ---
 step 'Copying the system (a few minutes)'
@@ -236,6 +238,29 @@ find "$TARGET/etc/systemd/system" -xtype l -delete 2>/dev/null || true
 # Message d'accueil du live (installer, Wi-Fi via iwctl) : faux sur le systeme
 # installe, qui tourne sous NetworkManager.
 : > "$TARGET/etc/motd"
+
+# --- paquets retenus ---
+# caelestia-shell 1.x ne survit pas au passage a 2.x tel que paru le fait.
+# qt6-m3shapes-git (nouvelle dependance de 2.x) declare
+# conflict = caelestia-shell<2.4.0 : paru l'installe seul en --noconfirm, pacman
+# refuse, mais libcava 1.0 est deja passe. Le shell 1.x, lie a libcava.so.0, ne
+# demarre plus : ecran noir au premier 'paru'. On retient le trio tant que l'image
+# embarque un shell 1.x ; le reste du systeme se met a jour normalement.
+shell_ver=$(pacman -Q caelestia-shell 2>/dev/null | awk '{ print $2 }')
+if [[ -n $shell_ver ]] && (( $(vercmp "$shell_ver" 2.4.0) < 0 )); then
+    HOLD='libcava caelestia-shell qt6-m3shapes-git'
+    step 'Holding back the caelestia shell'
+    conf="$TARGET/etc/pacman.conf"
+    if grep -q '^IgnorePkg' "$conf"; then
+        sed -i "s/^IgnorePkg.*/& $HOLD/" "$conf"
+    elif grep -q '^#IgnorePkg' "$conf"; then
+        sed -i "0,/^#IgnorePkg.*/s//IgnorePkg = $HOLD/" "$conf"
+    else
+        sed -i "/^\[options\]/a IgnorePkg = $HOLD" "$conf"
+    fi
+    grep -q '^IgnorePkg.*caelestia-shell' "$conf" || die "could not hold packages in $conf"
+    info "IgnorePkg = $HOLD (caelestia-shell $shell_ver)"
+fi
 
 # --- noyau ---
 # mkarchiso vide /boot de l'airootfs : copier le systeme live donne un /boot sans

@@ -1,0 +1,15 @@
+# Apres chaque transaction (paru passe par pacman), verifie que le shell
+# caelestia pourra demarrer, et sinon dit quoi lancer. Voir caelestia-health.
+# Prefixe zz- : apres les hooks du rice qui repatchent caelestia-shell.
+
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Type = Package
+Target = *
+
+[Action]
+Description = Checking that the caelestia shell can still start...
+When = PostTransaction
+Exec = /usr/local/bin/caelestia-health

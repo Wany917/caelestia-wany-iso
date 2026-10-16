@@ -52,6 +52,13 @@ It asks for a hostname, a username, a timezone, a locale, a keyboard layout and 
 
 No network is needed at any point: the installer copies the live system instead of downloading packages. After a reboot, a login screen asks for your password and the desktop opens with your keyboard layout.
 
+## Updating
+
+Update with `paru`, like any Arch system. Two things are specific:
+
+- **The caelestia shell is held back.** This image ships `caelestia-shell` 1.x, and the move to 2.x that `paru` attempts fails halfway: `libcava` gets upgraded, the shell does not, and the desktop comes back black. The installer therefore adds `IgnorePkg = libcava caelestia-shell qt6-m3shapes-git` to `/etc/pacman.conf`. Everything else updates normally. A later image will move to 2.x.
+- **After each update, a check runs.** If the shell would not start (typically `quickshell-git` after a Qt update, which needs a rebuild), you get a yellow warning at the end of the update with the exact command to run, usually `paru -S --rebuild quickshell-git`. Run `caelestia-health` any time to check again.
+
 ## Troubleshooting
 
 **The desktop does not start, or you land on a login prompt.** Switch to another console with `Ctrl + Alt + F2`, log in as `root` (no password) and look at:

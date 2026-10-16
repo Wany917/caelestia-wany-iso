@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# Verifie que le shell caelestia pourra encore demarrer.
+#
+#   caelestia-health        (aussi lance par un hook pacman apres chaque transaction)
+#
+# Deux pannes reviennent apres une mise a jour par paru, et donnent un ecran noir
+# sans explication :
+#   - quickshell utilise l'API privee de Qt : il plante des que Qt change, meme
+#     d'une version mineure, tant qu'il n'est pas recompile ;
+#   - une dependance change de soname sans que le paquet qui l'utilise soit
+#     recompile (libcava 1.0 et caelestia-shell 1.6.2, deux fois en 2026).
+# Un hook ne peut pas recompiler un paquet AUR (pas de makepkg en root) : il dit
+# quoi lancer. Toujours code 0, un hook en echec n'apporterait rien de plus.
+
+set -uo pipefail
+
+problems=0
+report() {
+    (( problems++ )) || printf '\n\e[1;33m==> caelestia: the desktop shell will not start until this is fixed\e[0m\n'
+    printf '    %s\n' "$@"
+}
+
+# Version de Qt dont quickshell a utilise les en-tetes prives : leur chemin
+# (/usr/include/qt6/<Module>/<version>/) reste grave dans le binaire.
+check_qt() {
+    local qs=/usr/bin/quickshell built qt
+    [[ -x $qs ]] || return 0
+    built=$(grep -aoE '/usr/include/qt6/Qt[A-Za-z]+/6\.[0-9]+\.[0-9]+/' "$qs" | grep -oE '6\.[0-9]+\.[0-9]+' | sort -u | head -1)
+    qt=$(pacman -Q qt6-base 2>/dev/null | awk '{ sub(/-[^-]+$/, "", $2); print $2 }')
+    [[ -n $built && -n $qt && $built != "$qt" ]] || return 0
+    report "quickshell was built for Qt $built, Qt is now $qt." \
+           "Fix: paru -S --rebuild quickshell-git"
+}
+
+# Bibliotheques introuvables pour les binaires du shell. ldd ne fait que tracer
+# l'edition de liens de fichiers installes par les paquets.
+check_libs() {
+    local pkg f missing
+    for pkg in quickshell-git caelestia-shell; do
+        pacman -Q "$pkg" &>/dev/null || continue
+        missing=$(pacman -Qlq "$pkg" | grep -E '\.so$|/usr/bin/quickshell$' | while read -r f; do
+            [[ -f $f ]] && ldd "$f" 2>/dev/null | awk '/not found/ { print $1 }'
+        done | sort -u | tr '\n' ' ')
+        [[ -n $missing ]] || continue
+        report "$pkg needs ${missing% }, which is no longer installed." \
+               "Fix: paru -S --rebuild $pkg (or reinstall the previous version of that library)"
+    done
+}
+
+main() {
+    check_qt
+    check_libs
+    if (( problems == 0 )) && [[ -t 1 ]]; then
+        echo 'caelestia: ok'
+    fi
+    return 0
+}
+
+[[ ${BASH_SOURCE[0]} == "$0" ]] && main "$@"
