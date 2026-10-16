@@ -80,6 +80,22 @@ function _qt_private_version -a pkgfile
     rm -rf "$tmp"
 end
 
+# Bibliotheques (NEEDED des ELF du paquet) que ni le paquet lui-meme ni cette
+# machine ne fournissent. Lecture seule, rien n'est execute. Les paquets AUR
+# embarques sont ceux installes ici, donc leurs dependances aussi.
+function _missing_libs -a pkgfile
+    set -l tmp (mktemp -d)
+    bsdtar -xf "$pkgfile" -C "$tmp" usr opt 2>/dev/null
+    set -l own (find "$tmp" -name '*.so*' -printf '%f\n')
+    set -l needed (find "$tmp" -type f -exec env LC_ALL=C readelf -d {} + 2>/dev/null \
+        | string match -r '\(NEEDED\).*\[(.+)\]' | string match -rv NEEDED | sort -u)
+    rm -rf "$tmp"
+    for lib in $needed
+        contains -- $lib $own; and continue
+        contains -- $lib $system_libs; or echo $lib
+    end
+end
+
 test -f "$conf"; or _die "liste des paquets introuvable : $conf"
 
 if set -q _flag_clean
@@ -125,7 +141,15 @@ end
 # ne demarrerait pas, et l'ISO s'ouvrirait sur un bureau vide.
 set -l qt (pacman -Q qt6-base 2>/dev/null | string split ' ')[2]
 set qt (string replace -r -- '-[^-]+$' '' "$qt")
+#
+# Et paquets qui reclament une bibliotheque partagee absente d'ici : une
+# dependance a change de soname sans que le paquet soit recompile. Vecu deux fois
+# (17 septembre, 16 octobre) : libcava 1.0 remplace libcava.so.0 par .so.1, et
+# caelestia-shell 1.6.2, compile contre .so.0, ne charge plus. Le shell ne demarre
+# pas, l'ISO s'ouvre sur un ecran noir.
+set -g system_libs (ldconfig -p | string match -r '^\s+(\S+) ' | string match -rv '^\s')
 set -l stale
+set -l broken
 for f in $repo_dir/*.pkg.tar.zst
     string match -q -- '*-any.pkg.tar.zst' $f; and continue
     set -l name (bsdtar -xOf "$f" .PKGINFO | string match -r '^pkgname = (.+)')[2]
@@ -134,6 +158,11 @@ for f in $repo_dir/*.pkg.tar.zst
             set -a stale $name
             set_color red; echo "  qt        $name compile contre Qt $v, l'ISO aura Qt $qt"; set_color normal
         end
+    end
+    set -l miss (_missing_libs "$f")
+    if test (count $miss) -gt 0
+        set -a broken $name
+        set_color red; echo "  libs      $name reclame $miss, introuvable(s) ici"; set_color normal
     end
 end
 if test (count $stale) -gt 0
@@ -144,6 +173,15 @@ if test (count $stale) -gt 0
     _die (count $stale)" paquet(s) a recompiler"
 end
 echo "  ok        API privee de Qt alignee sur Qt $qt"
+if test (count $broken) -gt 0
+    echo
+    _out yellow "Une dependance a change de version sans que ces paquets suivent. Soit tu"
+    _out yellow "recompiles (paru -S --rebuild $broken), soit tu reviens a l'ancienne"
+    _out yellow "version de la dependance, puis relance."
+    echo
+    _die (count $broken)" paquet(s) avec des bibliotheques manquantes"
+end
+echo "  ok        toutes les bibliotheques requises sont presentes"
 
 # Construit la base de donnees pacman du depot, vierge (videe plus haut avec les
 # paquets) : elle ne contient que ce qui vient d'etre collecte.
