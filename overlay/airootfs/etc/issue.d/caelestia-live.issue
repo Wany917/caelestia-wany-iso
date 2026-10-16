@@ -1,0 +1,5 @@
+caelestia-wany live session. The desktop normally starts on its own (tty1).
+Login here: root or caelestia, both without a password.
+If the desktop did not start: journalctl -b -u greetd -u caelestia-live-setup
+Build info for bug reports: cat /etc/caelestia-wany-release
+
