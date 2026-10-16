@@ -2,15 +2,16 @@ An Arch Linux ISO that boots straight into **[caelestia](https://github.com/cael
 
 **All credit for the desktop goes to caelestia.** This image contains no desktop of its own: it packages caelestia's work into something installable. If you like what you see when it boots, that is their work. Please star and support the original project.
 
-## Fixed since v2026.08.16
+## New since v2026.10.16
 
-- **The live session now starts on real hardware** (#1, #2). When the machine has enough RAM, archiso copies the image to memory at boot and unmounts the USB stick. The service that prepares the live user only ran while the stick was mounted, so it was skipped: Hyprland failed with "Permission denied" and you landed on a login prompt. My test VMs booted the ISO as a CD, where this never happens. They now boot it as a USB stick.
-- **The installer works in that same situation.** It used to refuse to start, and it read the kernel from the USB stick.
-- **The installer is in English** and asks for your keyboard layout, which the installed desktop then uses.
-- **The installed system has a login screen** (tuigreet) instead of opening the desktop without a password.
-- **The live account no longer survives installation.** It was left behind and recreated at every boot.
-- **Updates no longer break the desktop silently.** The installed system holds back `caelestia-shell`, `libcava` and `qt6-m3shapes-git`, whose upgrade by `paru` fails halfway and leaves a black screen. After every update, a check warns you with the exact command to run if the shell would not start (for example `quickshell-git` after a Qt update).
-- Rebuilt against current Arch packages, with the Lua-based Hyprland config from upstream caelestia.
+- **caelestia-shell 2.5.0** (was 1.6.2). Settings move to the new Nexus app (`Super + Shift + T`, or `>settings` in the launcher), and the media tab of the dashboard shows synced lyrics on its own.
+- **The shell font is included.** caelestia 2.x is designed around Google Sans Flex but does not install it, so you would get a fallback font. It is on the image now.
+- **No more held-back packages.** v2026.10.16 kept `caelestia-shell`, `libcava` and `qt6-m3shapes-git` from updating, because `paru` could not move the shell from 1.x to 2.x. With 2.x on the image, the installed system updates them like everything else. The check that runs after every update stays, and still tells you what to run if the shell would not start.
+- Rebuilt against current Arch packages.
+
+**Installed from v2026.10.16?** Keep the hold in `/etc/pacman.conf` and that system keeps working. Moving it to 2.x by hand also means replacing patched shell files and the shell config, so reinstalling from this image is the simpler path (back up your home first).
+
+**Still on v2026.08.16?** It does not start on most real machines (#1, #2). Use this release.
 
 ## Getting the ISO
 

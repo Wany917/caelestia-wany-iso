@@ -54,10 +54,9 @@ No network is needed at any point: the installer copies the live system instead 
 
 ## Updating
 
-Update with `paru`, like any Arch system. Two things are specific:
+Update with `paru`, like any Arch system. After each update, a check runs: if the shell would not start (typically `quickshell-git` after a Qt update, which needs a rebuild), you get a yellow warning at the end of the update with the exact command to run, usually `paru -S --rebuild quickshell-git`. Run `caelestia-health` any time to check again.
 
-- **The caelestia shell is held back.** This image ships `caelestia-shell` 1.x, and the move to 2.x that `paru` attempts fails halfway: `libcava` gets upgraded, the shell does not, and the desktop comes back black. The installer therefore adds `IgnorePkg = libcava caelestia-shell qt6-m3shapes-git` to `/etc/pacman.conf`. Everything else updates normally. A later image will move to 2.x.
-- **After each update, a check runs.** If the shell would not start (typically `quickshell-git` after a Qt update, which needs a rebuild), you get a yellow warning at the end of the update with the exact command to run, usually `paru -S --rebuild quickshell-git`. Run `caelestia-health` any time to check again.
+**Installed from v2026.10.16?** That image shipped `caelestia-shell` 1.x and holds it back with `IgnorePkg` in `/etc/pacman.conf`, because `paru` cannot move 1.x to 2.x on its own: the desktop would come back black. Leave the hold in place and the system keeps working as it is. Moving it to 2.x by hand also means replacing patched shell files and the shell config, so reinstalling from a newer image is the simpler path. Back up your home first, the installer erases the disk.
 
 ## Troubleshooting
 
@@ -75,7 +74,7 @@ journalctl -b -u greetd -u caelestia-live-setup
 
 Three moving parts, because pacstrap cannot read the AUR and a dotfiles installer expects a running desktop.
 
-**1. A local pacman repository.** caelestia needs AUR packages (`caelestia-shell`, `caelestia-cli`, `quickshell-git`, `qtengine-git`, `app2unit` and a few transitive dependencies), plus `paru` and the browser bound to `Super + W`. `pacstrap` cannot read the AUR, so they are taken pre-built from the build machine and served from a repository at build time.
+**1. A local pacman repository.** caelestia needs AUR packages (`caelestia-shell`, `caelestia-cli`, `quickshell-git`, `qtengine-git`, `app2unit` and a few transitive dependencies), plus `paru`, the browser bound to `Super + W` and the shell's default font, Google Sans Flex, which `caelestia-shell` does not declare. `pacstrap` cannot read the AUR, so they are taken pre-built from the build machine and served from a repository at build time.
 
 **2. An archiso profile.** The standard `releng` profile, plus that repository, the package set, and a live user started by greetd. Hyprland refuses to run as root, which is why the live session has a real user.
 
