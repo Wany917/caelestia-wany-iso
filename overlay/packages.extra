@@ -35,10 +35,11 @@ vulkan-radeon
 nvidia-open
 
 # --- Session ---
-# Gestionnaire de session du systeme installe : il lance start-hyprland (fourni
-# par le paquet hyprland). Sans lui, une fois l'autologin du live retire, on
-# arrive sur un TTY sans bureau.
+# Gestionnaire de session : autologin dans le live, et sur le systeme installe il
+# lance start-hyprland (fourni par le paquet hyprland) apres l'ecran de login.
 greetd
+# Ecran de login du systeme installe (le live n'en a pas besoin)
+greetd-tuigreet
 networkmanager
 xdg-desktop-portal-hyprland
 qt6-wayland

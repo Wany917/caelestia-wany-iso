@@ -5,11 +5,15 @@
 # contient deja le bureau complet et ses paquets AUR, donc recopier evite d'embarquer
 # un cache de plusieurs Go et rend l'installation reellement hors-ligne.
 #
+# Interface en anglais : l'ISO est publique. Toutes les questions sont posees et
+# validees AVANT de toucher au disque.
+#
 # ATTENTION : efface integralement le disque choisi.
 
 set -euo pipefail
 
 TARGET=/mnt
+LIVE_HOME=/home/caelestia
 
 # --- affichage ---
 c_red=$'\e[1;31m'; c_grn=$'\e[1;32m'; c_cyn=$'\e[1;36m'; c_yel=$'\e[1;33m'; c_off=$'\e[0m'
@@ -19,73 +23,176 @@ warn() { printf '%s !! %s%s\n' "$c_yel" "$1" "$c_off"; }
 die()  { printf '%s !! %s%s\n' "$c_red" "$1" "$c_off" >&2; exit 1; }
 
 # --- garde-fous ---
-[[ $EUID -eq 0 ]] || die "a lancer en root"
-[[ -e /run/archiso/bootmnt ]] || die "a lancer depuis la session live caelestia-wany"
+# /run/archiso et non /run/archiso/bootmnt : copytoram (actif par defaut sur une
+# vraie machine) demonte et supprime bootmnt. Voir caelestia-live-setup.service.
+[[ $EUID -eq 0 ]] || die 'run me as root: sudo caelestia-install'
+[[ -d /run/archiso ]] || die 'run me from the caelestia-wany live session'
 [[ -d /sys/firmware/efi ]] || die \
-    "machine demarree en mode BIOS/CSM. Cet installeur ne pose que systemd-boot (UEFI).
-   Redemarre en UEFI, ou installe un chargeur BIOS a la main."
-mountpoint -q "$TARGET" && die "$TARGET est deja monte, demonte-le d'abord"
+    "this machine booted in BIOS/CSM mode. The installer only sets up systemd-boot (UEFI).
+   Reboot the USB stick in UEFI mode."
+mountpoint -q "$TARGET" && die "$TARGET is already mounted, unmount it first"
+
+# Le noyau, pris dans l'image et non sur le support de demarrage : avec copytoram
+# ce dernier n'est plus monte. mkarchiso vide /boot, mais le paquet linux garde sa
+# copie dans /usr/lib/modules. Verifie ici, avant d'effacer quoi que ce soit.
+KERNEL="/usr/lib/modules/$(uname -r)/vmlinuz"
+[[ -f $KERNEL ]] || die "kernel image not found: $KERNEL"
+[[ -d $LIVE_HOME/.local/share/caelestia ]] || die "rice not found in $LIVE_HOME"
+
+# Disques qui portent le support live. Avec copytoram il n'est plus monte : on le
+# retrouve par l'UUID qu'archiso a cherche au demarrage. lsblk -s remonte jusqu'au
+# disque physique, y compris a travers device-mapper (Ventoy).
+live_disks() {
+    local src uuid
+    src=$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)
+    if [[ -z $src ]]; then
+        uuid=$(sed -n 's/.*archisosearchuuid=\([^ ]*\).*/\1/p' /proc/cmdline)
+        [[ -n $uuid && -e /dev/disk/by-uuid/$uuid ]] && src=$(readlink -f "/dev/disk/by-uuid/$uuid")
+    fi
+    [[ -n $src ]] || return 0
+    lsblk -lnspo NAME,TYPE "$src" 2>/dev/null | awk '$2 == "disk" { print $1 }' | sort -u
+}
+mapfile -t LIVE_DISKS < <(live_disks)
+
+# --- saisie ---
+# Repose la question tant que la reponse est refusee : une faute de frappe ne doit
+# pas obliger a tout recommencer.
+ask() {
+    local -n _ask_out=$1
+    local prompt=$2 def=$3 check=$4 reply
+    while :; do
+        read -rp "   $prompt${def:+ [$def]}: " reply
+        reply=${reply:-$def}
+        [[ -n $reply ]] || continue
+        if "$check" "$reply"; then
+            _ask_out=$reply
+            return
+        fi
+    done
+}
+
+valid_hostname() {
+    [[ $1 =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$ ]] && return
+    warn 'letters, digits and dashes only'; return 1
+}
+valid_username() {
+    if [[ ! $1 =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; then
+        warn 'lowercase letters, digits, - and _ only, starting with a letter'; return 1
+    fi
+    # 'caelestia' est le compte du live : il est repris tel quel. Les autres
+    # comptes existants sont des comptes systeme (root, greeter...).
+    if [[ $1 != caelestia ]] && id -u "$1" &>/dev/null; then
+        warn "$1 is a system account"; return 1
+    fi
+}
+valid_timezone() {
+    [[ $1 != /* && $1 != *..* && -f /usr/share/zoneinfo/$1 ]] && return
+    warn 'unknown timezone (examples: UTC, Europe/Paris, America/New_York, Asia/Kolkata)'; return 1
+}
+valid_locale() {
+    awk -v l="$1" '$1 == l { found = 1 } END { exit !found }' /usr/share/i18n/SUPPORTED && return
+    warn 'unknown locale (examples: en_US.UTF-8, fr_FR.UTF-8, de_DE.UTF-8)'; return 1
+}
+valid_layout() {
+    [[ $1 != */* && -f /usr/share/X11/xkb/symbols/$1 ]] && return
+    warn 'unknown layout (examples: us, gb, fr, de, es, it, br)'; return 1
+}
+valid_disk() {
+    local d l
+    d=$(readlink -f "$1")
+    [[ -b $d && $(lsblk -dno TYPE "$d" 2>/dev/null) == disk ]] || { warn "$1 is not a disk"; return 1; }
+    for l in "${LIVE_DISKS[@]}"; do
+        [[ $d == "$l" ]] && { warn "$1 holds the live system, pick another disk"; return 1; }
+    done
+    if lsblk -no MOUNTPOINTS "$d" | grep -q .; then
+        warn "$1 has mounted partitions, unmount them first"; return 1
+    fi
+}
+
+# Disposition XKB -> keymap de la console, quand les noms different. Sans
+# equivalent, la console reste en us : seul le bureau compte vraiment.
+console_keymap() {
+    local k=$1
+    case $k in
+        gb) k=uk ;;
+        br) k=br-abnt2 ;;
+    esac
+    if find /usr/share/kbd/keymaps -name "$k.map.gz" -print -quit | grep -q .; then
+        echo "$k"
+    else
+        echo us
+    fi
+}
 
 cat <<BANNER
 
-  ${c_cyn}caelestia-wany${c_off} — installation sur disque
+  ${c_cyn}caelestia-wany${c_off}: install to disk
 
-  Le bureau est ${c_cyn}caelestia${c_off} par soramanew et caelestia-dots.
+  The desktop is ${c_cyn}caelestia${c_off} by soramanew and the caelestia-dots team.
   https://github.com/caelestia-dots
+
+  Nothing is written before the final confirmation. Ctrl+C aborts.
 
 BANNER
 
-# --- choix du disque ---
-step 'Disque cible'
-lsblk -dpno NAME,SIZE,MODEL -e 7,11 | sed 's/^/   /'
-echo
-read -rp '   Disque a effacer (ex: /dev/nvme0n1) : ' DISK
-[[ -b $DISK ]] || die "$DISK n'est pas un peripherique bloc"
-
-# Refuse le disque qui porte le live : ce serait scier la branche
-if findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null | grep -q "^${DISK}"; then
-    die "$DISK porte le support live, choisis un autre disque"
-fi
-
-echo
-warn "TOUT le contenu de $DISK va etre detruit :"
-lsblk -pno NAME,SIZE,FSTYPE,LABEL,MOUNTPOINTS "$DISK" | sed 's/^/     /'
-echo
-read -rp "   Retape le chemin du disque pour confirmer : " CONFIRM
-[[ $CONFIRM == "$DISK" ]] || die 'confirmation incorrecte, rien n a ete touche'
-
-# --- parametres systeme ---
-step 'Parametres'
-read -rp '   Nom de machine [caelestia] : ' HOSTNAME; HOSTNAME=${HOSTNAME:-caelestia}
-read -rp '   Utilisateur [jinshi] : ' USERNAME; USERNAME=${USERNAME:-jinshi}
-read -rp '   Fuseau horaire [Europe/Paris] : ' TIMEZONE; TIMEZONE=${TIMEZONE:-Europe/Paris}
-read -rp '   Locale [fr_FR.UTF-8] : ' LOCALE; LOCALE=${LOCALE:-fr_FR.UTF-8}
-read -rp '   Clavier console [fr] : ' KEYMAP; KEYMAP=${KEYMAP:-fr}
-
-[[ -f "/usr/share/zoneinfo/$TIMEZONE" ]] || die "fuseau inconnu : $TIMEZONE"
+step 'System settings'
+ask HOSTNAME 'Hostname' caelestia valid_hostname
+ask USERNAME 'Username' '' valid_username
+ask TIMEZONE 'Timezone' UTC valid_timezone
+ask LOCALE 'Locale' en_US.UTF-8 valid_locale
+ask LAYOUT 'Keyboard layout' us valid_layout
+KEYMAP=$(console_keymap "$LAYOUT")
 
 while :; do
-    read -rsp "   Mot de passe pour $USERNAME : " PASS1; echo
-    read -rsp '   Confirme : ' PASS2; echo
+    read -rsp "   Password for $USERNAME: " PASS1; echo
+    read -rsp '   Confirm: ' PASS2; echo
     [[ -n $PASS1 && $PASS1 == "$PASS2" ]] && break
-    warn 'mots de passe vides ou differents'
+    warn 'passwords are empty or do not match'
 done
 
+step 'Target disk'
+lsblk -dpno NAME,SIZE,MODEL -e 7,11 | while read -r name rest; do
+    mark=''
+    for l in "${LIVE_DISKS[@]}"; do [[ $name == "$l" ]] && mark='   (live system)'; done
+    printf '   %s %s%s\n' "$name" "$rest" "$mark"
+done
+echo
+ask DISK 'Disk to ERASE (example: /dev/nvme0n1)' '' valid_disk
+DISK=$(readlink -f "$DISK")
+
+step 'Summary'
+info "hostname   $HOSTNAME"
+info "user       $USERNAME (sudo, fish)"
+info "timezone   $TIMEZONE"
+info "locale     $LOCALE"
+info "keyboard   $LAYOUT (console: $KEYMAP)"
+info "disk       $DISK, 1 GiB EFI + ext4 root"
+echo
+warn "EVERYTHING on $DISK will be destroyed:"
+lsblk -pno NAME,SIZE,FSTYPE,LABEL "$DISK" | sed 's/^/     /'
+echo
+read -rp "   Type the disk path again to confirm: " CONFIRM
+[[ $CONFIRM == "$DISK" ]] || die 'confirmation does not match, nothing was touched'
+
+# A partir d'ici, un echec laisse le disque dans un etat intermediaire : on le dit.
+trap 'printf "%s !! installation failed (line %s). %s is in an unknown state, mounts under %s are left for inspection.%s\n" "$c_red" "$LINENO" "$DISK" "$TARGET" "$c_off" >&2' ERR
+
 # --- partitionnement ---
-step "Partitionnement de $DISK"
+step "Partitioning $DISK"
 sgdisk -Z "$DISK" >/dev/null
 sgdisk -n1:0:+1G -t1:ef00 -c1:EFI \
        -n2:0:0    -t2:8300 -c2:caelestia "$DISK" >/dev/null
-partprobe "$DISK"; sleep 2
+partprobe "$DISK"
+udevadm settle
 
 # nvme0n1 -> nvme0n1p1 ; sda -> sda1
 if [[ $DISK =~ [0-9]$ ]]; then P="${DISK}p"; else P="$DISK"; fi
 ESP="${P}1"; ROOT="${P}2"
-[[ -b $ESP && -b $ROOT ]] || die 'partitions introuvables apres partitionnement'
+[[ -b $ESP && -b $ROOT ]] || die 'partitions not found after partitioning'
 info "ESP  $ESP"
 info "root $ROOT"
 
-step 'Formatage'
+step 'Formatting'
 mkfs.fat -F32 -n EFI "$ESP" >/dev/null
 mkfs.ext4 -F -L caelestia "$ROOT" >/dev/null
 
@@ -94,7 +201,7 @@ mkdir -p "$TARGET/boot"
 mount "$ESP" "$TARGET/boot"
 
 # --- copie du systeme live ---
-step 'Copie du systeme (quelques minutes)'
+step 'Copying the system (a few minutes)'
 rsync -aAXH --info=progress2 \
     --exclude='/dev/*' --exclude='/proc/*' --exclude='/sys/*' \
     --exclude='/run/*'  --exclude='/tmp/*'  --exclude='/mnt/*' \
@@ -102,9 +209,10 @@ rsync -aAXH --info=progress2 \
     / "$TARGET/"
 
 # --- retrait des artefacts propres au live ---
-step 'Nettoyage des specificites du live'
+step 'Removing live-only pieces'
 rm -rf \
     "$TARGET/etc/systemd/system/getty@tty1.service.d" \
+    "$TARGET/etc/systemd/system/getty@tty1.service" \
     "$TARGET/etc/systemd/system/livecd-alsa-unmuter.service" \
     "$TARGET/etc/systemd/system/livecd-talk.service" \
     "$TARGET/etc/systemd/system/choose-mirror.service" \
@@ -115,23 +223,22 @@ rm -rf \
     "$TARGET/etc/mkinitcpio.conf.d/archiso.conf" \
     "$TARGET/etc/ssh/sshd_config.d/10-archiso.conf" \
     "$TARGET/etc/systemd/resolved.conf.d/archiso.conf" \
+    "$TARGET/etc/issue.d/caelestia-live.issue" \
     "$TARGET/root/.zlogin" "$TARGET/root/.automated_script.sh" \
     "$TARGET/usr/local/bin/choose-mirror" "$TARGET/usr/local/bin/Installation_guide" \
     "$TARGET/usr/local/bin/livecd-sound" "$TARGET/usr/local/bin/caelestia-live-setup" \
-    "$TARGET/etc/sudoers.d/10-live"
+    "$TARGET/etc/sudoers.d/10-live" \
+    "$TARGET/etc/sysusers.d/caelestia-live.conf"
 
 # Liens 'wants' devenus orphelins (leurs unites viennent d'etre supprimees)
 find "$TARGET/etc/systemd/system" -xtype l -delete 2>/dev/null || true
 
 # --- noyau ---
-# mkarchiso vide /boot de l'airootfs : il deplace le noyau vers la zone de
-# demarrage de l'ISO. Copier le systeme live donne donc un /boot SANS noyau,
-# c'est-a-dire un systeme non amorcable. On le recupere depuis le support live.
-step 'Restauration du noyau'
-KERNEL=/run/archiso/bootmnt/arch/boot/x86_64/vmlinuz-linux
-[[ -f $KERNEL ]] || die "noyau introuvable sur le support live : $KERNEL"
+# mkarchiso vide /boot de l'airootfs : copier le systeme live donne un /boot sans
+# noyau, donc un systeme non amorcable. On le reprend dans /usr/lib/modules.
+step 'Restoring the kernel'
 install -Dm644 "$KERNEL" "$TARGET/boot/vmlinuz-linux"
-info "vmlinuz-linux copie ($(du -h "$KERNEL" | cut -f1))"
+info "vmlinuz-linux copied ($(du -h "$KERNEL" | cut -f1))"
 
 # Le preset livre est celui d'archiso : il ne genere qu'une image 'archiso' liee
 # a une config qu'on vient de supprimer, et aucune image de secours. On remet le
@@ -151,11 +258,33 @@ fallback_options="-S autodetect"
 PRESET
 
 # --- fstab ---
-step 'Table des systemes de fichiers'
+step 'Filesystem table'
 genfstab -U "$TARGET" >> "$TARGET/etc/fstab"
 
+# --- rice dans le home de l'utilisateur ---
+# Copie AVANT le chroot : le compte live y est supprime, et avec lui la garantie
+# que son home reste en place.
+step "Installing the rice for $USERNAME"
+mkdir -p "$TARGET/home/$USERNAME/.local/share"
+if [[ $USERNAME != caelestia ]]; then
+    rsync -a "$TARGET$LIVE_HOME/.local/share/caelestia/" \
+             "$TARGET/home/$USERNAME/.local/share/caelestia/"
+fi
+
+# Reglages propres a cette machine, lus par hypr-user.lua du rice : le clavier
+# choisi, et pas de verrouillage au demarrage puisque tuigreet vient deja de
+# demander le mot de passe.
+mkdir -p "$TARGET/home/$USERNAME/.config/caelestia"
+cat > "$TARGET/home/$USERNAME/.config/caelestia/hypr-local.lua" <<LOCAL
+-- Machine settings written by caelestia-install. Edit freely.
+return {
+    kb_layout     = "$LAYOUT",
+    lock_on_start = false,
+}
+LOCAL
+
 # --- configuration dans le chroot ---
-step 'Configuration du systeme'
+step 'Configuring the system'
 
 # Le mot de passe passe par un fichier, jamais par le heredoc : un caractere
 # special ($, ", backslash) y serait interprete et casserait le script.
@@ -166,8 +295,8 @@ arch-chroot "$TARGET" /bin/bash -euo pipefail <<CHROOT
 ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 hwclock --systohc
 
-sed -i "s/^#\s*\($LOCALE\)/\1/" /etc/locale.gen
-grep -q '^en_US.UTF-8' /etc/locale.gen || sed -i 's/^#\s*\(en_US.UTF-8\)/\1/' /etc/locale.gen
+sed -i "s/^#\s*\($LOCALE \)/\1/" /etc/locale.gen
+grep -q '^en_US.UTF-8' /etc/locale.gen || sed -i 's/^#\s*\(en_US.UTF-8 \)/\1/' /etc/locale.gen
 locale-gen >/dev/null
 echo "LANG=$LOCALE" > /etc/locale.conf
 echo "KEYMAP=$KEYMAP" > /etc/vconsole.conf
@@ -180,13 +309,16 @@ cat > /etc/hosts <<HOSTS
 HOSTS
 
 # Utilisateur. Shell fish : c'est celui que configure le rice.
-# L'utilisateur 'caelestia' de la session live figure deja dans le /etc/passwd
-# recopie : si l'operateur choisit ce meme nom, useradd echouerait et stopperait
-# l'installation. On adapte au lieu de supposer un compte neuf.
-if id "$USERNAME" &>/dev/null; then
-    usermod -aG wheel,audio,video,input,storage -s /usr/bin/fish -d "/home/$USERNAME" "$USERNAME"
+# Le compte 'caelestia' du live figure dans le /etc/passwd recopie. Choisi comme
+# nom, on le reprend. Sinon on le supprime AVANT de creer le compte, qui recupere
+# ainsi l'UID 1000. -f est indispensable : /proc dans le chroot est celui du live,
+# ou ce compte fait tourner le bureau, et userdel refuserait (en silence, avant).
+# Sans -r, son home reste : il est retire apres le chroot.
+if [[ $USERNAME == caelestia ]]; then
+    usermod -aG wheel,audio,video,input,storage -s /usr/bin/fish caelestia
 else
-    useradd -m -G wheel,audio,video,input,storage -s /usr/bin/fish "$USERNAME"
+    userdel -f caelestia
+    useradd -M -d "/home/$USERNAME" -G wheel,audio,video,input,storage -s /usr/bin/fish "$USERNAME"
 fi
 chpasswd < /root/.passwd-in
 rm -f /root/.passwd-in
@@ -200,20 +332,18 @@ passwd -l root >/dev/null
 echo '%wheel ALL=(ALL:ALL) ALL' > /etc/sudoers.d/10-wheel
 chmod 440 /etc/sudoers.d/10-wheel
 
-# Session graphique : greetd lance start-hyprland (fourni par le paquet hyprland).
-# Sans ca, le systeme installe demarre sur un TTY sans bureau.
+# Session graphique : ecran de login tuigreet, qui lance start-hyprland (fourni
+# par le paquet hyprland) une fois le mot de passe accepte. Pas d'autologin : le
+# live en a un, le systeme installe demande le mot de passe. L'utilisateur
+# 'greeter' vient du paquet greetd.
 mkdir -p /etc/greetd
 cat > /etc/greetd/config.toml <<GREETD
 [terminal]
 vt = 1
 
 [default_session]
-command = "start-hyprland"
-user = "$USERNAME"
-
-[initial_session]
-command = "start-hyprland"
-user = "$USERNAME"
+command = "tuigreet --time --remember --asterisks --cmd start-hyprland"
+user = "greeter"
 GREETD
 systemctl enable greetd.service >/dev/null
 
@@ -249,22 +379,19 @@ options root=UUID=\$ROOT_UUID rw
 ENTRY
 CHROOT
 
-# --- rice dans le home de l'utilisateur ---
-step "Installation du rice pour $USERNAME"
-mkdir -p "$TARGET/home/$USERNAME/.local/share"
-rsync -a "$TARGET/home/caelestia/.local/share/caelestia/" \
-         "$TARGET/home/$USERNAME/.local/share/caelestia/"
+step 'Applying the rice'
 arch-chroot "$TARGET" /usr/local/bin/caelestia-apply-rice "/home/$USERNAME" "$USERNAME"
+# Mode par defaut d'Arch pour un home (HOME_MODE de login.defs)
+chmod 700 "$TARGET/home/$USERNAME"
 
-# L'utilisateur 'caelestia' n'existe que pour la session live : il n'a rien a
-# faire sur le systeme installe, ou l'utilisateur porte le nom choisi plus haut.
+# Home du compte live, supprime dans le chroot : plus rien ne s'en sert.
 if [[ $USERNAME != caelestia ]]; then
-    arch-chroot "$TARGET" userdel caelestia 2>/dev/null || true
-    rm -rf "$TARGET/home/caelestia"
+    rm -rf "$TARGET$LIVE_HOME"
 fi
 
 # --- fin ---
+trap - ERR
 umount -R "$TARGET"
-printf '\n%s:: Installation terminee%s\n' "$c_grn" "$c_off"
-info "Redemarre, retire le support, connecte-toi en $USERNAME."
-info 'Le bureau caelestia demarre depuis la session Hyprland.'
+printf '\n%s:: Installation complete%s\n' "$c_grn" "$c_off"
+info 'Reboot, remove the USB stick, and log in as '"$USERNAME"'.'
+info 'No network is needed: everything was copied from the live system.'
