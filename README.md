@@ -36,9 +36,9 @@ The desktop starts on its own, logged in as `caelestia`. Nothing to type.
 | `caelestia` | none | the desktop, `sudo` without a password |
 | `root` | none | the console login on TTY2 to TTY6, if you need it |
 
-**Keyboard.** The live session starts in French (AZERTY), because that is my setup. **Caps Lock switches between French and US (QWERTY).** Shift + Caps Lock still locks capitals. The console on TTY2 and up is always US.
+**Keyboard.** Pick it at the boot menu: the default entry is US (QWERTY), the next one is French (AZERTY). In the live session, **Caps Lock switches to the other layout**, and Shift + Caps Lock still locks capitals. The consoles on TTY2 and up follow the boot menu choice.
 
-The installer asks for your layout, so the installed system uses yours.
+The installer asks for your layout and suggests the one you booted with, so the installed system uses yours.
 
 ## Installing
 
@@ -135,7 +135,7 @@ VSCodium's binary is `codium`: set `editor = "codium"` in `~/.local/share/caeles
 
 **The image is a snapshot.** `quickshell-git` and `qtengine-git` are VCS packages: they track a moving upstream. An image built today ships today's commit and drifts from then on. Rebuild periodically rather than treating an image as evergreen.
 
-**It carries some of my setup.** A monitor rule, the avatar, the session GIFs, the French keyboard in the live session. See "Making it yours" in the [caelestia-wany README](https://github.com/Wany917/caelestia-wany#making-it-yours). Machine settings that the installer writes live in `~/.config/caelestia/hypr-local.lua`.
+**It carries some of my setup.** A monitor rule, the avatar, the session GIFs. See "Making it yours" in the [caelestia-wany README](https://github.com/Wany917/caelestia-wany#making-it-yours). Machine settings that the installer writes live in `~/.config/caelestia/hypr-local.lua`.
 
 **No wallpaper is included.** You get a plain background until you set one (`Super + Shift + W`, or drop images in `~/Pictures/Wallpapers`).
 
