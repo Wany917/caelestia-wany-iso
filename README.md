@@ -66,6 +66,8 @@ Update with `paru`, like any Arch system. After each update, a check runs: if th
 journalctl -b -u greetd -u caelestia-live-setup
 ```
 
+**The live screen locked and asks for a password.** On v2026.10.19, the live session locks after 3 minutes without input. The account has no password: press Enter on the empty field. Newer releases do not lock the live session.
+
 **Using v2026.08.16?** That release fails on most real machines: archiso copies the image to RAM at boot, and the live setup did not run in that case ([#2](https://github.com/Wany917/caelestia-wany-iso/issues/2)). Newer releases fix it. With that release, highlight the first boot entry, press `e`, add ` copytoram=n` at the end of the kernel line and boot it (Enter, or Ctrl+X in GRUB, which is what Ventoy shows).
 
 **Reporting a bug.** Include your hardware, how you wrote the USB stick, and the output of `cat /etc/caelestia-wany-release`, which records what the image was built from.

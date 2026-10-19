@@ -45,5 +45,18 @@ if [[ " $(</proc/cmdline) " == *" caelestia.kb=fr "* ]]; then
         && log 'keyboard: fr (us on Caps Lock)'
 fi
 
+# Pas de verrouillage a l'inactivite dans le live : le compte n'a pas de mot de
+# passe, l'ecran de verrouillage ne protege rien et son "Enter your password"
+# deroute en pleine installation. On desactive l'entree (enabled = false) plutot
+# que de vider la liste, pour ne pas retomber sur les delais par defaut du shell.
+# Le systeme installe garde le delai du rice. Ecriture en place : le fichier
+# reste a l'utilisateur live.
+SHELL_JSON="$LIVE_HOME/.config/caelestia/shell.json"
+if [[ -f $SHELL_JSON ]] && json=$(jq 'if (.general.idle.timeouts | type) == "array"
+        then .general.idle.timeouts |= map(if .idleAction == "lock" then .enabled = false else . end)
+        else . end' "$SHELL_JSON"); then
+    printf '%s\n' "$json" > "$SHELL_JSON" && log 'idle lock: off'
+fi
+
 touch "$STAMP"
 log 'live session ready'
