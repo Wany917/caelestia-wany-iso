@@ -137,7 +137,7 @@ VSCodium's binary is `codium`: set `editor = "codium"` in `~/.local/share/caeles
 
 **It carries some of my setup.** A monitor rule, the avatar, the session GIFs. See "Making it yours" in the [caelestia-wany README](https://github.com/Wany917/caelestia-wany#making-it-yours). Machine settings that the installer writes live in `~/.config/caelestia/hypr-local.lua`.
 
-**No wallpaper is included.** You get a plain background until you set one (`Super + Shift + W`, or drop images in `~/Pictures/Wallpapers`).
+**One wallpaper is included**, the default that ships with caelestia. Drop your own images in `~/Pictures/Wallpapers`, then `Super + Shift + W` switches to a random one.
 
 **`paru`, not `paru-bin`.** The `-bin` variant installs under the package name `paru-bin` and only *provides* `paru`. `install.fish` checks `pacman -Q paru`, which matches on name, not provides, so with `paru-bin` it would try to bootstrap paru from the AUR and the offline promise would break.
 

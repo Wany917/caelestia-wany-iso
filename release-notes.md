@@ -43,7 +43,7 @@ Install it to disk with `sudo caelestia-install`. **No network is needed at any 
 
 **No editor is included.** `Super + C` is bound to `code`, but Microsoft's VS Code build is under a commercial licence that forbids redistribution. `paru` is on the image: `paru -S visual-studio-code-bin`, or `paru -S vscodium-bin` for the free build.
 
-**No wallpaper is included.** You get a plain background until you set one (`Super + Shift + W`, or drop images in `~/Pictures/Wallpapers`).
+**One wallpaper is included**, the default that ships with caelestia. Drop your own images in `~/Pictures/Wallpapers`, then `Super + Shift + W` switches to a random one.
 
 **Some settings are personal.** Monitor rule, avatar, keybinds. See [Making it yours](https://github.com/Wany917/caelestia-wany#making-it-yours).
 
