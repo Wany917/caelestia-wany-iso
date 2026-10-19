@@ -122,6 +122,16 @@ printf '%s\n' \
     '    lock_on_start = false,' \
     '}' > "$live_home/.config/caelestia/hypr-local.lua"
 
+# Attente de la synchro NTP (activee par releng pour pacman-init) : sans reseau
+# elle ne finit jamais (TimeoutStartSec=infinity), le systeme reste "starting",
+# pacman-init, power-profiles-daemon et multi-user.target attendent, et la console
+# affiche "A start job is running for Wait Until Kernel Time Synchronized" (#1).
+# L'installeur copie le live : le systeme installe en heritait aussi.
+# systemd-timesyncd reste actif et regle l'heure des que le reseau arrive.
+rm -f "$profile/airootfs/etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service"
+test -e "$profile/airootfs/etc/systemd/system/sysinit.target.wants/systemd-time-wait-sync.service"
+and _die "systemd-time-wait-sync toujours active"
+
 # --- identite de l'ISO ---
 _out "personnalisation de profiledef.sh"
 sed -i \
