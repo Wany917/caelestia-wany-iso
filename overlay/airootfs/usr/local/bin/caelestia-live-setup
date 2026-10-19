@@ -38,5 +38,12 @@ chown "$LIVE_USER:$LIVE_USER" "$LIVE_HOME"
 
 /usr/local/bin/caelestia-apply-rice "$LIVE_HOME" "$LIVE_USER"
 
+# Entree "AZERTY / FR" du menu de demarrage : fr d'abord, us sur Verr. Maj.
+# L'image est construite en us,fr (scripts/make-profile.fish).
+if [[ " $(</proc/cmdline) " == *" caelestia.kb=fr "* ]]; then
+    sed -i 's/kb_layout *= *"us,fr"/kb_layout     = "fr,us"/' "$LIVE_HOME/.config/caelestia/hypr-local.lua" \
+        && log 'keyboard: fr (us on Caps Lock)'
+fi
+
 touch "$STAMP"
 log 'live session ready'

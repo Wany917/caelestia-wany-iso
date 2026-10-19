@@ -140,7 +140,10 @@ ask HOSTNAME 'Hostname' caelestia valid_hostname
 ask USERNAME 'Username' '' valid_username
 ask TIMEZONE 'Timezone' UTC valid_timezone
 ask LOCALE 'Locale' en_US.UTF-8 valid_locale
-ask LAYOUT 'Keyboard layout' us valid_layout
+# Par defaut, la disposition choisie au menu de demarrage du live
+default_layout=us
+[[ " $(</proc/cmdline) " == *" caelestia.kb=fr "* ]] && default_layout=fr
+ask LAYOUT 'Keyboard layout' "$default_layout" valid_layout
 KEYMAP=$(console_keymap "$LAYOUT")
 
 while :; do

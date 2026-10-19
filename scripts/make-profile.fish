@@ -109,15 +109,16 @@ or _die "extraction du rice echouee"
 # Reglages machine de la session live, lus par hypr-user.lua du rice. Pas de
 # verrouillage au demarrage : le compte live n'a pas de mot de passe, l'ecran de
 # verrouillage ne ferait que derouter.
-# Clavier : fr comme le rice, plus us, Verr. Maj basculant de l'un a l'autre.
-# Taper une commande pour changer de disposition est quasi impossible quand le
-# clavier physique ne correspond pas. Verr. Maj ne sert a aucun raccourci du rice,
-# et Maj + Verr. Maj garde le verrouillage des majuscules.
+# Clavier : us par defaut, fr en second, Verr. Maj basculant de l'un a l'autre.
+# L'entree AZERTY du menu de demarrage inverse l'ordre (caelestia-live-setup lit
+# caelestia.kb=fr). Taper une commande pour changer de disposition est quasi
+# impossible quand le clavier physique ne correspond pas. Verr. Maj ne sert a
+# aucun raccourci du rice, et Maj + Verr. Maj garde le verrouillage des majuscules.
 mkdir -p "$live_home/.config/caelestia"
 printf '%s\n' \
     '-- Live session settings, written when the ISO was built.' \
     'return {' \
-    '    kb_layout     = "fr,us",' \
+    '    kb_layout     = "us,fr",' \
     '    kb_options    = "grp:caps_toggle",' \
     '    lock_on_start = false,' \
     '}' > "$live_home/.config/caelestia/hypr-local.lua"
@@ -148,6 +149,42 @@ set -l boot_cfgs $profile/efiboot/loader/entries/*.conf $profile/grub/*.cfg $pro
 sed -i 's/Arch Linux install medium/caelestia-wany live/g' $boot_cfgs
 if grep -l 'Arch Linux install medium' $boot_cfgs >/dev/null
     _die "entrees de demarrage non renommees : la structure de releng a change"
+end
+
+# Choix du clavier au demarrage : l'entree principale devient "QWERTY / US" (par
+# defaut), et une copie "AZERTY / FR" passe caelestia.kb=fr (lu par
+# caelestia-live-setup et caelestia-install) et vconsole.keymap=fr (consoles TTY).
+# systemd-boot et syslinux sont les modes de demarrage de releng ; les deux
+# fichiers GRUB servent au demarrage en loopback (Ventoy).
+_out "entrees QWERTY / AZERTY"
+set -l kb_params 'caelestia.kb=fr vconsole.keymap=fr'
+set -l sdboot $profile/efiboot/loader/entries
+sed -e 's|^title \(.*\)caelestia-wany live (|title \1caelestia-wany live, AZERTY / FR (|' \
+    -e 's|^sort-key .*|sort-key 01b|' \
+    -e "s| %KERNEL_PARAMS%| $kb_params %KERNEL_PARAMS%|" \
+    $sdboot/01-archiso-linux.conf > $sdboot/01b-archiso-linux-azerty.conf
+sed -i 's|^title \(.*\)caelestia-wany live (|title \1caelestia-wany live, QWERTY / US (|' $sdboot/01-archiso-linux.conf
+for f in $profile/grub/grub.cfg $profile/grub/loopback.cfg
+    KB="$kb_params" perl -0pi -e '
+        s{(menuentry "caelestia-wany live)( \(%ARCH%, [^\n]*--id \x27archlinux\x27 \{\n.*?\n\}\n)}{
+            my ($head, $rest) = ($1, $2);
+            (my $fr = "$head, AZERTY / FR$rest") =~ s/--id \x27archlinux\x27/--id \x27archlinux-azerty\x27/;
+            $fr =~ s/ %KERNEL_PARAMS%/ $ENV{KB} %KERNEL_PARAMS%/;
+            "$head, QWERTY / US$rest\n$fr"
+        }se' $f
+end
+KB="$kb_params" perl -0pi -e '
+    s{(LABEL arch\n.*?MENU LABEL caelestia-wany live)( \(%ARCH%, BIOS\)\n.*?%KERNEL_PARAMS%\n)}{
+        my ($head, $rest) = ($1, $2);
+        (my $fr = "$head, AZERTY / FR$rest") =~ s/^LABEL arch$/LABEL archfr/m;
+        $fr =~ s/ %KERNEL_PARAMS%/ $ENV{KB} %KERNEL_PARAMS%/;
+        "$head, QWERTY / US$rest\n$fr"
+    }se' $profile/syslinux/archiso_sys-linux.cfg
+for f in $sdboot/01-archiso-linux.conf $sdboot/01b-archiso-linux-azerty.conf $profile/grub/grub.cfg $profile/grub/loopback.cfg $profile/syslinux/archiso_sys-linux.cfg
+    set -l n (string match -r -- 'caelestia\.kb=fr' < $f | count)
+    set -l expected 1
+    string match -q -- '*-linux.conf' $f; and set expected 0
+    test "$n" = "$expected"; or _die "entree AZERTY absente ou en double dans "(basename $f)" : la structure de releng a change"
 end
 
 # Ce qui a servi a construire l'image, pour les rapports de bug :
