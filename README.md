@@ -27,6 +27,23 @@ sudo dd if=caelestia-wany.iso of=/dev/sdX bs=4M status=progress oflag=sync
 
 Ventoy works too.
 
+**Turn Secure Boot off** in your firmware settings before booting the stick. The image is not signed for Secure Boot, like Arch's own ISO, so a firmware with Secure Boot on refuses it. Ventoy is the exception: it can enroll its own key.
+
+**Booting the ISO file from another GRUB** (grub2win, or a Linux already on the disk): the ISO carries a `loopback.cfg` that tells the live system where the ISO file is. Point a custom menu entry at it, with the path of the reassembled ISO on its partition:
+
+```
+menuentry "caelestia-wany" {
+    set iso_path="/caelestia-wany-2026.10.19-x86_64.iso"
+    export iso_path
+    search --no-floppy --set=root --file "$iso_path"
+    loopback loop "$iso_path"
+    set root=(loop)
+    configfile /boot/grub/loopback.cfg
+}
+```
+
+A generic "Arch Linux ISO" entry does not work: it gives the kernel no device, and the boot stops on `Mounting '' to '/run/archiso/bootmnt'`. The partition holding the ISO can be FAT32, exFAT, NTFS or ext4, but not BitLocker-encrypted.
+
 ## The live session
 
 The desktop starts on its own, logged in as `caelestia`. Nothing to type.
@@ -64,6 +81,14 @@ Update with `paru`, like any Arch system. After each update, a check runs: if th
 
 ```sh
 journalctl -b -u greetd -u caelestia-live-setup
+```
+
+**No sound, or Bluetooth turns itself off.** v2026.10.19 and older ship PipeWire without its audio modules and without BlueZ ([#3](https://github.com/Wany917/caelestia-wany-iso/issues/3)): `wpctl status` lists no sound card, the volume falls back to 0, the Bluetooth toggle switches back off. Newer releases include them. On a system installed from those releases, with a network connection:
+
+```sh
+paru -S --needed pipewire-audio pipewire-alsa pipewire-pulse pavucontrol bluez bluez-utils
+sudo systemctl enable --now bluetooth
+audiofix
 ```
 
 **The live screen locked and asks for a password.** On v2026.10.19, the live session locks after 3 minutes without input. The account has no password: press Enter on the empty field. Newer releases do not lock the live session.
@@ -114,6 +139,8 @@ Everything runs in a throwaway VM under `vm/`. Nothing touches the host.
 ```
 
 The ISO is attached as a USB stick, not a CD. That matters: from a USB stick with enough RAM, archiso copies the image to memory and unmounts the medium, like on real hardware. From a CD it never does, which is how the bug in v2026.08.16 got through. `--cdrom` is still available.
+
+The VM has an emulated Intel HD Audio card: in the live session and on the installed system, `wpctl status` must list it under Sinks. Until v2026.10.19 nobody checked, and the image shipped without working sound.
 
 The last test is the one that proves the offline claim. The default display is VNC on `localhost:5901`. Install `qemu-ui-gtk` and pass `--display gtk` for a native window, and `qemu-hw-display-virtio-vga` for a usable framerate.
 

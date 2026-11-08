@@ -2,19 +2,24 @@ An Arch Linux ISO that boots straight into **[caelestia](https://github.com/cael
 
 **All credit for the desktop goes to caelestia.** This image contains no desktop of its own: it packages caelestia's work into something installable. If you like what you see when it boots, that is their work. Please star and support the original project.
 
-## New since v2026.10.16
+## New since v2026.10.19
 
-- **caelestia-shell 2.5.0** (was 1.6.2). Settings move to the new Nexus app (`Super + Shift + T`, or `>settings` in the launcher), and the media tab of the dashboard shows synced lyrics on its own.
-- **The shell font is included.** caelestia 2.x is designed around Google Sans Flex but does not install it, so you would get a fallback font. It is on the image now.
-- **No more held-back packages.** v2026.10.16 kept `caelestia-shell`, `libcava` and `qt6-m3shapes-git` from updating, because `paru` could not move the shell from 1.x to 2.x. With 2.x on the image, the installed system updates them like everything else. The check that runs after every update stays, and still tells you what to run if the shell would not start.
-- **Choose your keyboard at the boot menu.** The default entry is US (QWERTY), the next one French (AZERTY), and Caps Lock switches to the other layout in the live session. The installer suggests the layout you booted with. Thanks to @sharicov for asking (#2).
-- **The live system no longer waits for a network clock.** Without a connection, a time sync service waited forever: the console showed "A start job is running for Wait Until Kernel Time Synchronized", and some services never started, on the live and on installed systems alike. Reported by @xrompf (#1).
-- **One desktop shell per session.** Every session used to start two copies of the caelestia shell on top of each other.
+- **Sound works.** The image shipped PipeWire without its audio modules: no sound card showed up (`wpctl status` listed only the webcam), browsers and Discord had no sound, and the volume fell back to 0. PipeWire's ALSA, PulseAudio and Bluetooth audio support are on the image now, with `pavucontrol` behind the shell's audio settings button. Thanks to @ahmadprogrammer111 for the report (#3).
+- **Bluetooth works.** BlueZ was missing, so the Bluetooth toggle switched itself back off. It is included and its service enabled, on the live and on installed systems.
+- **A file manager.** `Super + E` and the shell open Thunar, which was not on the image. Trash, USB sticks and thumbnails work in it.
+- **Password prompts for graphical apps and a keyring.** The polkit agent and GNOME Keyring that the session starts were missing.
+- **The live session no longer locks after 3 minutes** and asks for a password the account does not have.
+- The launcher no longer lists the Avahi SSH and VNC browsers.
 - Rebuilt against current Arch packages.
 
-**Installed from v2026.10.16?** Keep the hold in `/etc/pacman.conf` and that system keeps working. Moving it to 2.x by hand also means replacing patched shell files and the shell config, so reinstalling from this image is the simpler path (back up your home first).
+**Installed from v2026.10.19 or older?** You can get sound and Bluetooth without reinstalling, with a network connection:
 
-**Still on v2026.08.16?** It does not start on most real machines (#1, #2). Use this release.
+```sh
+paru -S --needed pipewire-audio pipewire-alsa pipewire-pulse pavucontrol bluez bluez-utils thunar gvfs tumbler polkit-gnome gnome-keyring
+sudo systemctl enable --now bluetooth
+```
+
+Then log out and back in.
 
 ## Getting the ISO
 
@@ -27,7 +32,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 
 `SHA256SUMS` carries the checksum of each part *and* of the reassembled image, so you can tell a bad download from a bad reassembly. The split was verified to reassemble byte-for-byte before publishing.
 
-Write it to a USB stick (Ventoy works too):
+Write it to a USB stick (Ventoy works too). Turn Secure Boot off first: the image is not signed for it, like Arch's own ISO.
 
 ```sh
 sudo dd if=caelestia-wany.iso of=/dev/sdX bs=4M status=progress oflag=sync
