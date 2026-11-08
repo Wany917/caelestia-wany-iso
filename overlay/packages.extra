@@ -6,16 +6,45 @@
 # de paquet avec des espaces en fin. Un commentaire = sa propre ligne.
 
 # --- Desktop ---
-# Le metapackage tire toute la chaine caelestia (hyprland, fish, foot, pipewire,
-# quickshell, caelestia-shell...). Inutile de lister ses dependances ici.
+# Le metapackage tire la chaine caelestia (hyprland, fish, foot, quickshell,
+# caelestia-shell...). Il suppose un Arch deja equipe en son et Bluetooth : voir
+# la section suivante.
 caelestia-meta
 # Helper AUR : install.fish le reclame par son nom exact (pacman -Q paru), et sans
 # lui il tenterait de le compiler depuis l'AUR au premier boot.
 paru
 
+# --- Son et Bluetooth ---
+# caelestia-meta ne tire que wireplumber, et pipewire seul n'a que son module
+# video : aucune carte son (wpctl ne montre que la webcam), pas de son dans les
+# navigateurs ni Discord, volume qui retombe a 0 (issue #3). pipewire-audio
+# apporte les modules alsa et bluez5, pipewire-pulse les applications PulseAudio.
+pipewire-audio
+pipewire-alsa
+pipewire-pulse
+rtkit
+# Mixeur ouvert par le bouton de reglages audio du shell (general.apps.audio dans
+# le shell.json du rice) : le defaut de caelestia, pwvucontrol, n'est que dans l'AUR.
+pavucontrol
+# Sans bluez, pas de bluetoothd : le bouton du shell se recoupe aussitot. Son
+# service est active par scripts/make-profile.fish. bluez-utils fournit aussi
+# mpris-proxy, lance par le rice (touches media des casques).
+bluez
+bluez-utils
+
 # --- Apps lancees par les keybinds du rice ---
 # $browser, Super+W. MPL-2.0, donc redistribuable dans l'image.
 zen-browser-bin
+# $fileExplorer, Super+E, et explorateur par defaut du shell. gvfs : corbeille et
+# cles USB dans Thunar. tumbler : vignettes.
+thunar
+gvfs
+tumbler
+# Lances au demarrage par execs.lua du rice : l'agent polkit (fenetres de mot de
+# passe des applications graphiques) et le trousseau (mots de passe enregistres
+# par le navigateur, Discord...).
+polkit-gnome
+gnome-keyring
 
 # PAS d'editeur embarque. $editor vaut 'code' (Super+C), mais
 # visual-studio-code-bin est sous licence 'custom: commercial' : la build

@@ -80,6 +80,14 @@ mkdir -p "$wants"
 ln -sf /etc/systemd/system/caelestia-live-setup.service "$wants/caelestia-live-setup.service"
 ln -sf /usr/lib/systemd/system/greetd.service "$wants/greetd.service"
 
+# Bluetooth : memes liens que 'systemctl enable bluetooth' ([Install] du paquet :
+# WantedBy=bluetooth.target, Alias=dbus-org.bluez.service). bluetooth.target est
+# atteint des qu'un adaptateur apparait. Le systeme installe herite des liens,
+# l'installeur recopiant le live.
+mkdir -p "$profile/airootfs/etc/systemd/system/bluetooth.target.wants"
+ln -sf /usr/lib/systemd/system/bluetooth.service "$profile/airootfs/etc/systemd/system/bluetooth.target.wants/bluetooth.service"
+ln -sf /usr/lib/systemd/system/bluetooth.service "$profile/airootfs/etc/systemd/system/dbus-org.bluez.service"
+
 # greetd occupe le VT1. L'autologin root d'archiso s'y installe aussi et les deux
 # se disputeraient le terminal : on neutralise getty@tty1. Les autres VT restent
 # disponibles (Ctrl+Alt+F2) si le bureau ne demarre pas.
