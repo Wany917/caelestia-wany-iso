@@ -47,12 +47,11 @@ set -q _flag_install; and set mode install
 set -q _flag_disk; and set mode disk
 
 # --- affichage ---
+# VNC par defaut, meme si qemu-ui-gtk est installe : la fenetre gtk s'ouvre sur
+# le bureau de l'hote, ou Hyprland la range en mosaique, et l'ecran de la VM
+# prend la taille de la fenetre (463x486 le 2026-11-08). VNC garde 1280x800.
 set -l display vnc
-if set -q _flag_display
-    set display $_flag_display
-else if qemu-system-x86_64 -display help 2>&1 | grep -qw gtk
-    set display gtk
-end
+set -q _flag_display; and set display $_flag_display
 if test "$display" = gtk
     qemu-system-x86_64 -display help 2>&1 | grep -qw gtk
     or _die "affichage gtk indisponible. Installe qemu-ui-gtk, ou utilise --display vnc"
